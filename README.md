@@ -1,235 +1,250 @@
 # sshvault
 
-Gestor local de claves SSH, certificados, hosts y ficheros de `~/.ssh`, con todo el estado dentro de un único fichero cifrado y portable.
+Local manager for SSH keys, certificates, hosts, and files from `~/.ssh`, with all state stored in a single encrypted, portable vault.
 
 ```text
 $ sshvault
 Ok! Serving http://localhost:7000
 ```
 
-Abre esa URL en el navegador. La app se sirve solo en loopback y muestra el desbloqueo o la creación del vault en su propia interfaz.
+Open that URL in a browser. The app listens on loopback only and shows vault unlock or creation in its own interface.
 
-## Qué hace
+## What it does
 
-- **Keys**: claves públicas, privadas y certificados, con alias, tags, huella y estado local. Permite copiar, editar, generar pares ed25519/RSA/ECDSA, desplegar en `~/.ssh` y retirarlos.
-- **Hosts**: entradas de `~/.ssh/config` con `Host`, `HostName`, `User`, `Port`, varios `IdentityFile` y opciones avanzadas ordenadas. Previsualiza el bloque y copia el comando `ssh`.
-- **Files**: otros ficheros de `~/.ssh`, como `known_hosts` o `authorized_keys`, con edición de texto o binario, descarga, despliegue y avisos para ficheros sensibles.
-- **Importación**: escanea `~/.ssh`, detecta claves, certificados, hosts y ficheros, y los añade al vault sin modificar nada hasta que lo confirmas. Empareja privada y pública por el nombre base antes de `.pub`, aunque la pública tenga sufijos como `.old` o `.crdownload`: `foo` + `foo.pub.old` forma una clave `foo`; un `foo.pub.old` huérfano se importa como clave pública `foo`; y `foo.old` + `foo.pub.old` produce una clave privada `foo.old` y una pública `foo`.
-- **Resolver duplicados**: detecta entradas `Host` definidas a la vez dentro y fuera del bloque gestionado. Permite comentar el bloque antiguo, eliminarlo con backup o conservar solo los patrones no duplicados, siempre uno a uno.
-- **Interfaz**: tablas HTML nativas y componentes [Sumi.css](https://github.com/vladocar/Sumi.css) vendorizados, con tema **Sistema / Claro / Oscuro** desde Ajustes.
-- **Ficheros internos**: los nombres que contienen `.vault` (el propio vault, su `.lock`, backups, etc.) se excluyen del escaneo y de Files. Si ya estaban importados, se ocultan y se pueden quitar del vault sin tocar el fichero real.
-- **Bloqueo por inactividad**: por defecto 15 minutos. Al bloquear, la clave derivada se descarta de memoria y la web pide la contraseña de nuevo.
-- **Cambio de contraseña**: re-cifra el vault con un salt nuevo.
-- **Abrir otro vault**: desde la pantalla de bloqueo o Settings puedes cargar un `ssh.vault` existente de cualquier carpeta. En `--ui` se usa el diálogo nativo; en navegador se escribe la ruta.
-- **Desbloqueo web**: al arrancar, el servidor queda bloqueado y la UI pide la contraseña. Si el vault no existe, ofrece crearlo. `--change-password` sigue siendo una operación de terminal.
+- **Keys**: public keys, private keys, and certificates with aliases, tags, fingerprints, and local deployment status. Copy, edit, generate ed25519/RSA/ECDSA key pairs, deploy them to `~/.ssh`, and remove local copies.
+- **Hosts**: `~/.ssh/config` entries with `Host`, `HostName`, `User`, `Port`, multiple `IdentityFile` values, and ordered advanced options. Preview the managed block and copy the `ssh` command.
+- **Files**: other files in `~/.ssh`, such as `known_hosts` or `authorized_keys`, with text or binary editing, download, deployment, and warnings for sensitive files.
+- **Import**: scan `~/.ssh`, detect keys, certificates, hosts, and files, and add them to the vault without changing anything until you confirm. Private and public keys are paired by their base name before `.pub`, even when the public key has suffixes such as `.old` or `.crdownload`: `foo` + `foo.pub.old` becomes a `foo` key; an orphan `foo.pub.old` is imported as a public key named `foo`; and `foo.old` + `foo.pub.old` becomes a private key named `foo.old` plus a public key named `foo`.
+- **Duplicate resolver**: detect `Host` entries defined both inside and outside the managed block. Comment out the old block, remove it with a backup, or keep only the non-duplicated patterns, one entry at a time.
+- **Interface**: native HTML tables and vendored [Sumi.css](https://github.com/vladocar/Sumi.css) components, with **System / Light / Dark** themes in Settings.
+- **Internal files**: names containing `.vault` (the vault itself, its `.lock`, backups, and similar files) are excluded from scanning and Files. If they were already imported, they are hidden and can be removed from the vault without touching the real file.
+- **Idle lock**: 15 minutes by default. Locking discards the derived key from memory and the web app asks for the password again.
+- **Password change**: re-encrypts the vault with a new salt.
+- **Open another vault**: from the lock screen or Settings you can open an existing `ssh.vault` or create a new one at another path. Under `--ui`, the native file picker is available; in a browser, type the path.
+- **Remember last vault**: optional Settings toggle. It stores only the path of the last successfully unlocked or created vault, never the password; disable it to return to the default vault on startup.
+- **Web unlock**: the server starts locked and the UI asks for the password. If the vault does not exist, the UI offers to create it. `--change-password` remains a terminal-only operation.
 
-## Instalación
+## Installation
 
-Requiere Go 1.27.1 o superior. Glaze es CGo-free, así que no hace falta compilador de C.
+Requires Go 1.27.1 or newer. Glaze is CGo-free, so no C compiler is required.
 
 ```bash
 go build -o sshvault ./cmd/sshvault
-# o
+# or
 make build
 ```
 
-También puedes usar `go install ./cmd/sshvault`.
+You can also use `go install ./cmd/sshvault`.
 
 ### Homebrew (macOS)
 
 ```bash
 brew tap lucasmenendez/sshvault
-# Homebrew 7 o superior: autorizar el tap de terceros
+# Homebrew 7 or newer: trust the third-party tap
 brew trust lucasmenendez/sshvault
 brew install sshvault
 sshvault --ui
 ```
 
-El tap contiene la fórmula publicada automáticamente desde los releases del proyecto.
+The tap contains the formula published automatically from the project's releases.
 
-Solo macOS y Linux. El binario usa `flock`, permisos POSIX y symlinks. La UI nativa de `--ui` usa el WebView del sistema: WKWebView en macOS y WebKitGTK en Linux. En Linux hay que tener instalado WebKitGTK (`libwebkit2gtk-4.1-0` en Debian/Ubuntu, por ejemplo).
+Only macOS and Linux are supported. The binary uses `flock`, POSIX permissions, and symlinks. The native `--ui` window uses the system WebView: WKWebView on macOS and WebKitGTK on Linux. On Linux, WebKitGTK must be installed (`libwebkit2gtk-4.1-0` on Debian/Ubuntu, for example).
 
-## Uso
+## Usage
 
 ```bash
-# Vault por defecto: ~/.ssh/ssh.vault
+# Default vault: ~/.ssh/ssh.vault
 ./sshvault
 
-# Ruta explícita
-./sshvault -f ./trabajo.vault
-./sshvault ./trabajo.vault
+# Explicit path
+./sshvault -f ./work.vault
+./sshvault ./work.vault
 
-# Directorio SSH alternativo (útil para pruebas)
-# El vault por defecto pasa a /tmp/ssh-test/ssh.vault
+# Alternative SSH directory (useful for testing)
+# The default vault becomes /tmp/ssh-test/ssh.vault
 ./sshvault --ssh-dir /tmp/ssh-test
 
-# Si existe ./ssh.vault pero no ~/.ssh/ssh.vault, no se abre solo:
+# If ./ssh.vault exists but ~/.ssh/ssh.vault does not, it is not opened automatically:
 ./sshvault -f ./ssh.vault
 
-# Otro puerto, y abrir el navegador
+# Another port, and open the browser
 ./sshvault --addr 127.0.0.1:8080 --open
 
-# UI nativa (Glaze), sin navegador externo
+# Native UI (Glaze), without an external browser
 ./sshvault --ui
 
-# Cambiar la contraseña y salir
+# Change the password and exit
 ./sshvault --change-password
 ```
 
-Sin `-f` ni argumento posicional, el CLI usa `~/.ssh/ssh.vault`; con `--ssh-dir /ruta`, usa `/ruta/ssh.vault`. No hay fallback automático a `./ssh.vault`: si existe, se muestra un aviso y puedes abrirlo desde la propia web con **Open existing vault…** o con `-f ./ssh.vault`.
+Without `-f` or a positional argument, the CLI uses `~/.ssh/ssh.vault`; with `--ssh-dir /path`, it uses `/path/ssh.vault`. There is no automatic fallback to `./ssh.vault`: if it exists, a hint is shown and you can open it from the web UI with **Open existing vault…** or with `-f ./ssh.vault`.
 
-El CLI ya no pide la contraseña por terminal en el arranque normal. Arranca el servidor bloqueado y la web app pide la contraseña; si el fichero no existe, ofrece crearlo. `--change-password` sigue siendo una operación explícita de terminal.
+The CLI no longer prompts for the password in the terminal during normal startup. It starts the server locked and the web app asks for the password; if the file does not exist, it offers to create it. `--change-password` remains an explicit terminal operation.
 
 ### Flags
 
-| Flag | Descripción |
+| Flag | Description |
 | --- | --- |
-| `-f`, `--file` | Ruta del vault. Por defecto `~/.ssh/ssh.vault`, o `<ssh-dir>/ssh.vault` si se usa `--ssh-dir`. |
-| `--ssh-dir` | Directorio SSH a gestionar. Por defecto `~/.ssh`. |
-| `--addr` | Dirección de escucha. Solo loopback: `127.0.0.1`, `::1` o `localhost`. |
-| `--lock-after` | Duración de inactividad antes de bloquear. `0` lo desactiva. |
-| `--open` | Abre la URL en el navegador por defecto. Incompatible con `--ui`. |
-| `--ui` | Abre la UI en una ventana nativa con Glaze. Incompatible con `--open` y `--change-password`. |
-| `--change-password` | Cambia la contraseña y sale por terminal. |
-| `--version` | Muestra la versión. |
+| `-f`, `--file` | Vault path. Defaults to `~/.ssh/ssh.vault`, or `<ssh-dir>/ssh.vault` when `--ssh-dir` is used. |
+| `--ssh-dir` | SSH directory to manage. Defaults to `~/.ssh`. |
+| `--addr` | Listen address. Loopback only: `127.0.0.1`, `::1`, or `localhost`. |
+| `--lock-after` | Idle duration before locking. `0` disables it. |
+| `--open` | Open the URL in the default browser. Incompatible with `--ui`. |
+| `--ui` | Open the UI in a native Glaze window. Incompatible with `--open` and `--change-password`. |
+| `--change-password` | Change the password in the terminal and exit. |
+| `--version` | Print the version. |
 
-## Seguridad
+## Security
 
-- **Cifrado**: Argon2id (64 MiB, 3 pasadas, 4 hilos) + XChaCha20-Poly1305. La cabecera va autenticada como AAD.
-- **Formato versionado**: magic, versión, parámetros KDF, salt, nonce y ciphertext. Los parámetros KDF se validan al abrir para evitar consumos abusivos.
-- **Escritura atómica** y backups cifrados rotativos del vault.
-- **Permisos**: vault `0600`, claves privadas `0600`, públicas/certificados `0644`, `~/.ssh` `0700` si se crea.
-- **Loopback only**: la web no se expone a la red. Se validan `Host`, `Origin`, `Sec-Fetch-Site` y `Content-Type` para mitigar CSRF y DNS rebinding.
-- **CSP estricta**, sin CDNs ni recursos externos.
-- **Sin token**: cualquier usuario local podría acceder mientras el vault esté desbloqueado. Usa el bloqueo por inactividad y no lo dejes corriendo en servidores compartidos.
-- **Sin recuperación**: si pierdes la contraseña, no hay forma de abrir el vault. Los backups están cifrados con la misma contraseña.
-- **Secretos en memoria**: Go no permite borrar strings de forma fiable. Al bloquear/salir se descarta la clave derivada y el documento descifrado, pero el proceso pudo haber materializado strings de claves privadas. No ejecutes la app en un equipo no confiable.
-- **Portapapeles**: copiar una clave privada la deja disponible para otros procesos. La app pide confirmación y avisa.
+- **Encryption**: Argon2id (64 MiB, 3 passes, 4 threads) + XChaCha20-Poly1305. The header is authenticated as AAD.
+- **Versioned format**: magic, version, KDF parameters, salt, nonce, and ciphertext. KDF parameters are validated before use to prevent excessive resource consumption.
+- **Atomic writes** and rotating encrypted vault backups.
+- **Permissions**: vault `0600`, private keys `0600`, public keys/certificates `0644`, and `~/.ssh` `0700` when created.
+- **Loopback only**: the web server is not exposed to the network. `Host`, `Origin`, `Sec-Fetch-Site`, and `Content-Type` are validated to mitigate CSRF and DNS rebinding.
+- **Strict CSP**, with no CDNs or external resources.
+- **No token**: any local user could access the app while the vault is unlocked. Use idle locking and do not leave it running on shared servers.
+- **No recovery**: if you lose the password, there is no way to open the vault. Backups use the same password.
+- **Secrets in memory**: Go cannot reliably erase strings. Locking or exiting discards the derived key and decrypted document, but the process may have materialized private-key strings. Do not run the app on an untrusted machine.
+- **Clipboard**: copying a private key makes it available to other processes. The app asks for confirmation and warns about this.
 
-## Modelo de despliegue
+## Deployment model
 
-El vault es la fuente de verdad para las entradas que gestiona; `~/.ssh` es el destino.
+The vault is the source of truth for the entries it manages; `~/.ssh` is the destination.
 
-- Cada clave guarda un `filename` estable. Las nuevas usan `id_<alias>`; las importadas conservan su nombre.
-- Rutas: `~/.ssh/<filename>`, `<filename>.pub` y `<filename>-cert.pub`.
-- Los hosts viven en un **bloque gestionado** al principio de `~/.ssh/config`, delimitado por marcadores. El resto del fichero no se toca.
-- El bloque va al principio porque OpenSSH usa el primer valor que encuentra; así las entradas específicas tienen prioridad sobre los `Host *` del final.
-- Editar una entrada desplegada la sincroniza en local. Si el fichero local cambió fuera de la app, se marca **drift** y no se sobrescribe sin confirmación.
-- Los ficheros no gestionados se detectan y se pueden importar, pero nunca se borran automáticamente.
-- Borrar una entrada del vault pregunta si quieres borrar también su copia local.
+- Each key stores a stable `filename`. New keys use `id_<alias>`; imported keys keep their original name.
+- Paths: `~/.ssh/<filename>`, `<filename>.pub`, and `<filename>-cert.pub`.
+- Hosts live in a **managed block** at the top of `~/.ssh/config`, delimited by markers. The rest of the file is left untouched.
+- The block is placed first because OpenSSH uses the first matching value it finds; specific entries therefore take priority over trailing `Host *` entries.
+- Editing a deployed entry synchronizes the local file. If the local file changed outside the app, it is marked as **drift** and is not overwritten without confirmation.
+- Unmanaged files are detected and can be imported, but are never deleted automatically.
+- Deleting an entry from the vault asks whether to delete its local copy too.
 
-## Filas y acciones
+## Rows and actions
 
-- Las tablas usan HTML nativo (`table`, `thead`, `tbody`, `tr`, `th`, `td`) con la columna de acciones fija a la derecha; la cabecera y las celdas comparten el mismo borde.
-- Clic en una fila de **Keys**, **Hosts** o **Files** abre el modal unificado para consultar, editar y eliminar.
-- El checkbox sigue seleccionando para acciones masivas.
-- `Enter` o `Espacio` sobre una fila enfocada también abre el modal.
-- Acciones de fila:
-  - **Keys**: menú `Copiar` + `Desplegar` / `Quitar local`.
-  - **Hosts**: menú `Comando` + `Desplegar` / `Quitar local`.
-  - **Files**: `Descargar` + `Desplegar` / `Quitar local`.
-- En estado de conflicto/drift: `Resolver`.
-- Editar y eliminar están dentro del modal, no en la fila.
+- Tables use native HTML (`table`, `thead`, `tbody`, `tr`, `th`, `td`) with the action column fixed to the right; the header and cells share the same border.
+- Clicking a **Keys**, **Hosts**, or **Files** row opens the unified modal for viewing, editing, and deleting.
+- The checkbox still selects rows for bulk actions.
+- `Enter` or `Space` on a focused row also opens the modal.
+- Row actions:
+  - **Keys**: `Copy` menu + `Deploy` / `Remove local`.
+  - **Hosts**: `Command` menu + `Deploy` / `Remove local`.
+  - **Files**: `Download` + `Deploy` / `Remove local`.
+- In a conflict/drift state: `Resolve`.
+- Edit and delete live inside the modal, not in the row.
 
-### Resolver duplicados
+### Duplicate resolver
 
-Si un host está en el bloque gestionado y también fuera de él, la app muestra un aviso. El resolvedor:
+If a host exists in the managed block and also outside it, the app shows a warning. The resolver:
 
-- Enseña los bloques uno a uno.
-- Por defecto **comenta** el bloque antiguo con `# `, que es reversible.
-- Permite **eliminarlo** con una segunda confirmación y un backup.
-- Si el bloque exterior tiene varios patrones y solo algunos están duplicados, permite **conservar los no duplicados** reescribiendo la línea `Host`.
-- No toca el bloque gestionado.
-- Comprueba un hash del config antes de escribir; si el fichero cambió, aborta y recarga.
+- Shows the blocks one at a time.
+- By default **comments out** the old block with `# `, which is reversible.
+- Allows **removing** it after a second confirmation and a backup.
+- If the outside block has several patterns and only some are duplicated, allows **keeping the non-duplicated patterns** by rewriting the `Host` line.
+- Does not touch the managed block.
+- Checks a config hash before writing; if the file changed, it aborts and reloads.
 
-Solo se tienen en cuenta hosts ya desplegados. Los hosts importados pero no desplegados no generan duplicado todavía.
+Only deployed hosts are considered. Imported but undeployed hosts do not generate duplicates yet.
 
-### Ficheros internos
+### Internal files
 
-- Se excluyen del escaneo y de Files todos los nombres que contienen `.vault`, además del vault real, su `.lock` y sus `.bak.*`.
-- Si el vault ya contiene entradas de Files con esos nombres, se ocultan y aparece un aviso para quitarlas del vault.
-- Esa limpieza **no borra el fichero real** de disco.
+- Names containing `.vault` are excluded from scanning and Files, along with the actual vault, its `.lock`, and its `.bak.*` files.
+- If the vault already contains Files entries with those names, they are hidden and a warning offers to remove them from the vault.
+- That cleanup **does not delete the real file** from disk.
 
-## Interfaz
+## Interface
 
-- Base visual: [Sumi.css](https://github.com/vladocar/Sumi.css) v1.0.0, vendorizado en `internal/web/static/sumi.css` (MIT, sin CDN).
-- Tokens `--s-*`: el tema oscuro usa `--s-bg:#000`, `--s-surface:#2e2e2e`, `--s-card:#121212` y `--s-radius:0`; el claro invierte la escala manteniendo el contraste.
-- Selector **Sistema / Claro / Oscuro** en Ajustes. Se guarda en `localStorage`; `Sistema` sigue `prefers-color-scheme`.
-- Modales `<dialog><article>`, botones y formularios sobre la base de Sumi. Las tablas y la columna de acciones no duplican bordes ni sombras.
-- Los menús **Copiar** y **Comando** son dropdowns de Sumi (`<details class="dropdown">`); el panel se monta en `body` al abrirse para quedar por encima de la tabla.
+- Visual base: [Sumi.css](https://github.com/vladocar/Sumi.css) v1.0.0, vendored in `internal/web/static/sumi.css` (MIT, no CDN).
+- `--s-*` tokens: the dark theme uses `--s-bg:#000`, `--s-surface:#2e2e2e`, `--s-card:#121212`, and `--s-radius:0`; the light theme inverts the scale while preserving contrast.
+- **System / Light / Dark** selector in Settings. It is stored in `localStorage`; **System** follows `prefers-color-scheme`.
+- `<dialog><article>` modals, buttons, and forms based on Sumi. Tables and the action column do not duplicate borders or shadows.
+- The **Copy** and **Command** menus are Sumi dropdowns (`<details class="dropdown">`); the panel is mounted on `body` when opened so it stays above the table.
 
-## Cambios 0.7.3
+## Changes 0.7.4
 
-- En el layout responsive, todas las opciones del menú quedan alineadas a la izquierda y consecutivas.
-- Se elimina el reparto automático de espacio (`space-between`) entre Keys/Hosts/Files y Settings/Lock.
-- Con etiquetas o en modo solo iconos, los elementos mantienen el mismo orden y una separación uniforme.
-- El menú no hace wrap: si no cabe, la barra superior se desplaza horizontalmente.
-- En móviles de 360 px todas las opciones caben sin recortes.
+- New **Create new vault…** flow in Settings and on the lock screen, allowing a vault to be created at another path without touching the default vault.
+- Empty files can be explicitly initialized from **Create new vault**. Opening an empty file with **Open existing** shows a specific error and does not modify it.
+- Creating a vault at a new path creates the parent directory if needed, with `0700` permissions (for example, `~/vaults/ssh.vault`).
+- A file with content is never overwritten when creating another vault.
+- New **Remember last vault** option in Settings, disabled by default. It stores the path only after a successful unlock or creation, never the password.
+- The remembered path is stored in the user's configuration directory (`~/Library/Application Support/sshvault/config.json` on macOS) with `0600` permissions.
+- The remembered path is ignored when `-f` or a positional path is provided, and when `--ssh-dir` is used.
+- Vault paths are normalized so opening the same file through a symlink no longer fails with "vault in use".
+- Settings shows **Open default vault** when the active vault is not `<ssh-dir>/ssh.vault`.
+- Key/value rows in the Vault panel are vertically centered.
+- The README is now in English.
 
-## Cambios 0.7.2
+## Changes 0.7.3
 
-- La cabecera principal y el toolbar de cada vista quedan fijos.
-- La cabecera de las tablas (`thead`) es sticky dentro del área de la lista.
-- Solo se desplaza la zona de filas; la sidebar y el logo permanecen fijos.
-- Settings usa su propio scroll y mantiene la cabecera visible.
-- Se elimina el scroll del `body` para evitar dobles scrolls y desplazamientos de la sidebar.
-- Se mantiene el layout responsive: en ventanas estrechas la sidebar pasa arriba y el contenido sigue siendo el área de scroll.
+- In the responsive layout, all menu options are left-aligned and consecutive.
+- Removed the automatic `space-between` distribution between Keys/Hosts/Files and Settings/Lock.
+- With labels or in icon-only mode, items keep the same order and uniform spacing.
+- The menu does not wrap: if it does not fit, the top bar scrolls horizontally.
+- At 360 px wide, all options fit without clipping.
 
-## Cambios 0.7.1
+## Changes 0.7.2
 
-- En la ventana nativa, solo hace scroll el contenido principal; la sidebar y el logo quedan fijos bajo la titlebar, sin desplazarse hacia los controles de la ventana.
-- La columna de acciones es más ancha y los botones de fila tienen un espaciado más compacto. `Command`, `Download`, `Copy` y `Remove local` ya caben en su columna sin invadir la columna de estado.
+- The main header and toolbar of each view stay fixed.
+- Table headers (`thead`) are sticky inside the list area.
+- Only the row area scrolls; the sidebar and logo stay fixed.
+- Settings uses its own scroll area while keeping the header visible.
+- The `body` no longer scrolls, avoiding double scrollbars and sidebar movement.
+- The responsive layout is preserved: on narrow windows the sidebar moves to the top and the content remains the scroll area.
 
-## Cambios 0.7.0
+## Changes 0.7.1
 
-- El arranque normal ya no pide la contraseña por terminal: el servidor arranca bloqueado y la web app muestra el modal de desbloqueo. Aplica a `sshvault`, `--open` y `--ui`.
-- Si el vault no existe, la web app ofrece crearlo con contraseña y confirmación.
-- La pantalla de bloqueo y Settings incluyen **Open existing vault…** para abrir un `ssh.vault` de cualquier carpeta.
-- En `--ui`, el selector de fichero usa el diálogo nativo de Glaze; en navegador se puede escribir la ruta.
-- El vault activo se puede cambiar sin reiniciar; el anterior se cierra y se libera su lock.
-- `--change-password` sigue siendo una operación de terminal.
+- In the native window, only the main content scrolls; the sidebar and logo stay fixed under the titlebar and do not move toward the window controls.
+- The action column is wider and row buttons use tighter spacing. `Command`, `Download`, `Copy`, and `Remove local` fit in their column without invading the status column.
 
-## Cambios 0.6.0
+## Changes 0.7.0
 
-- Nuevo flag `--ui`: arranca el servidor actual y abre una ventana nativa con Glaze.
-- `--ui` conserva el servidor, el puerto, la sesión y el apagado ordenado; al cerrar la ventana se apaga el servidor.
-- En macOS la ventana usa titlebar transparente, contenido full-size y los botones del sistema integrados sobre el fondo de la app.
-- Glaze es CGo-free; el proyecto pasa a requerir Go 1.27.1.
-- `--open` sigue abriendo el navegador y es incompatible con `--ui`.
-- En Linux, `--ui` necesita WebKitGTK en tiempo de ejecución.
+- Normal startup no longer prompts for the password in the terminal: the server starts locked and the web app shows the unlock modal. This applies to `sshvault`, `--open`, and `--ui`.
+- If the vault does not exist, the web app offers to create it with a password and confirmation.
+- The lock screen and Settings include **Open existing vault…** to open an `ssh.vault` from any folder and **Create new vault…** to create one at another path.
+- Under `--ui`, the file picker uses Glaze's native dialog; in a browser, the path can be typed.
+- The active vault can be changed without restarting; the previous vault is closed and its lock is released.
+- `--change-password` remains a terminal operation.
 
-## Cambios 0.5.0
+## Changes 0.6.0
 
-- Toda la interfaz web está en inglés.
-- El vault por defecto del CLI es `~/.ssh/ssh.vault`; con `--ssh-dir` es `<ssh-dir>/ssh.vault`.
-- `-f`/`--file` y el argumento posicional siguen teniendo prioridad. Si existe `./ssh.vault` pero no el vault por defecto, no se abre automáticamente: se muestra un aviso.
-- El primer arranque con el vault por defecto crea `~/.ssh` con permisos `0700` si hace falta.
+- New `--ui` flag: starts the existing server and opens a native Glaze window.
+- `--ui` keeps the server, port, session, and graceful shutdown behavior; closing the window shuts down the server.
+- On macOS the window uses a transparent titlebar, full-size content, and system traffic lights over the app background.
+- Glaze is CGo-free; the project now requires Go 1.27.1.
+- `--open` still opens the browser and is incompatible with `--ui`.
+- On Linux, `--ui` requires WebKitGTK at runtime.
 
-## Cambios 0.4.1
+## Changes 0.5.0
 
-- El buscador y el botón de filtro comparten altura y línea base en Keys, Hosts y Files.
-- Los menús de fila **Copiar** y **Comando** usan el disclosure `<details class="dropdown">` de Sumi; el panel se monta en `body` para no quedar recortado por la tabla.
-- Corregida la apertura del editor de hosts que tienen opciones avanzadas.
+- The entire web UI is in English.
+- The CLI default vault is `~/.ssh/ssh.vault`; with `--ssh-dir` it is `<ssh-dir>/ssh.vault`.
+- `-f`/`--file` and the positional argument still take priority. If `./ssh.vault` exists but the default vault does not, it is not opened automatically: a hint is shown.
+- The first run with the default vault creates `~/.ssh` with `0700` permissions when needed.
 
-## Cambios 0.4.0
+## Changes 0.4.1
 
-- Importación: emparejamiento por nombre base antes de `.pub`, incluidos sufijos como `.old` y `.crdownload`; las públicas huérfanas se importan como claves.
-- Tablas HTML nativas y corrección del borde en la columna de acciones.
-- Migración visual a Sumi.css con los tokens oscuros del proyecto, tema claro inverso y selector Sistema/Claro/Oscuro.
+- The search field and filter button share height and baseline in Keys, Hosts, and Files.
+- The **Copy** and **Command** row menus use Sumi's `<details class="dropdown">` disclosure; the panel is mounted on `body` so it is not clipped by the table.
+- Fixed opening the host editor for hosts with advanced options.
+
+## Changes 0.4.0
+
+- Import: pairing by base name before `.pub`, including suffixes such as `.old` and `.crdownload`; orphan public keys are imported as keys.
+- Native HTML tables and a border fix in the action column.
+- Visual migration to Sumi.css with the project's dark tokens, inverted light theme, and System/Light/Dark selector.
 
 ## Backups
 
-- El vault guarda hasta 5 copias cifradas: `<vault>.bak.<timestamp>`.
-- Antes de reescribir `~/.ssh/config` o un fichero gestionado se guarda una copia en `~/.ssh/.sshvault-backups/` (hasta 20).
-- Las claves privadas no se copian en claro a los backups locales; su versión anterior sigue en los backups cifrados del vault.
+- The vault keeps up to 5 encrypted copies: `<vault>.bak.<timestamp>`.
+- Before rewriting `~/.ssh/config` or a managed file, a copy is saved in `~/.ssh/.sshvault-backups/` (up to 20).
+- Private keys are not copied in cleartext to local backups; their previous version remains in the encrypted vault backups.
 
-## Licencia
+## License
 
-sshvault se distribuye bajo **GNU Affero General Public License v3.0 only** (`AGPL-3.0-only`). El texto completo está en [LICENSE](LICENSE). El código fuente de cada release está disponible en el tag correspondiente del repositorio.
+sshvault is distributed under the **GNU Affero General Public License v3.0 only** (`AGPL-3.0-only`). The full text is in [LICENSE](LICENSE). The source code for each release is available at the corresponding repository tag.
 
-Sumi.css se mantiene bajo su licencia MIT original; su aviso está en la cabecera de `internal/web/static/sumi.css`.
+Sumi.css remains under its original MIT license; its notice is in the header of `internal/web/static/sumi.css`.
 
-## Desarrollo
+## Development
 
 ```bash
 make test
@@ -237,13 +252,13 @@ make vet
 make build
 ```
 
-La UI es una SPA sin build: HTML, CSS y JavaScript embebidos con `go:embed`. No necesita Node para compilar ni ejecutar. El CSS base de Sumi.css está vendorizado; al actualizarlo, conserva su cabecera de licencia MIT.
+The UI is a build-free SPA: HTML, CSS, and JavaScript embedded with `go:embed`. Node is not required to build or run it. The Sumi.css base is vendored; keep its MIT license header when updating it.
 
-## Limitaciones conocidas
+## Known limitations
 
-- No se firman certificados desde la app; se almacenan, importan y despliegan.
-- `Include` y `Match` en configs existentes se preservan fuera del bloque, pero no se gestionan desde la UI.
-- Los directorios dentro de `~/.ssh` no se gestionan.
-- Sin soporte Windows.
-- Límite de 4 MiB por fichero y 32 MiB de vault.
-- Si el vault está en un sistema de ficheros sin `flock` fiable, el bloqueo entre procesos puede no funcionar.
+- Certificates are not signed by the app; they are stored, imported, and deployed.
+- `Include` and `Match` in existing configs are preserved outside the managed block, but are not managed from the UI.
+- Directories inside `~/.ssh` are not managed.
+- Windows is not supported.
+- Limit: 4 MiB per file and 32 MiB per vault.
+- If the vault is on a filesystem without reliable `flock`, cross-process locking may not work.

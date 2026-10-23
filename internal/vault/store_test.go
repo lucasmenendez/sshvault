@@ -154,6 +154,63 @@ func TestOpenLockedMissingAndCreate(t *testing.T) {
 	}
 }
 
+func TestOpenLockedForCreateAcceptsEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.vault")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenLocked(path); !errors.Is(err, ErrEmptyVault) {
+		t.Fatalf("open empty err = %v, want ErrEmptyVault", err)
+	}
+	s, err := OpenLockedForCreate(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if !s.NeedsSetup() || !s.IsLocked() {
+		t.Fatalf("locked=%v needsSetup=%v", s.IsLocked(), s.NeedsSetup())
+	}
+	if err := s.Create(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("vault was not written")
+	}
+	if s.NeedsSetup() || s.IsLocked() {
+		t.Fatalf("after create locked=%v needsSetup=%v", s.IsLocked(), s.NeedsSetup())
+	}
+}
+
+func TestOpenLockedForCreateMakesParentDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "new-parent", "nested", "ssh.vault")
+	s, err := OpenLockedForCreate(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if !s.NeedsSetup() {
+		t.Fatal("new path should need setup")
+	}
+	if err := s.Create(testPassword); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenLockedForCreateRejectsNonEmptyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "existing.vault")
+	writeTestVault(t, path)
+	if _, err := OpenLockedForCreate(path); !errors.Is(err, ErrVaultExists) {
+		t.Fatalf("err = %v, want ErrVaultExists", err)
+	}
+}
+
 func TestLockedStore(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ssh.vault")
 	writeTestVault(t, path)

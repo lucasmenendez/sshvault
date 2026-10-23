@@ -16,6 +16,7 @@ import (
 
 var (
 	ErrNotFound     = errors.New("vault file not found")
+	ErrEmptyVault   = errors.New("vault file is empty")
 	ErrLocked       = errors.New("vault is locked")
 	ErrInUse        = errors.New("vault is in use by another sshvault process")
 	ErrRevision     = errors.New("vault was modified by another session")
@@ -83,8 +84,33 @@ func Open(path, password string) (*Store, error) {
 }
 
 // OpenLocked takes the process lock without decrypting the vault. The returned
-// store is locked; NeedsSetup reports whether the file does not exist yet.
+// store is locked; NeedsSetup reports whether the file does not exist yet. An
+// existing empty file is rejected because it is not a usable vault.
 func OpenLocked(path string) (*Store, error) {
+	return openLocked(path, false)
+}
+
+// OpenLockedForCreate is like OpenLocked, but a missing path or an existing
+// zero-byte file is accepted as a place where Create may initialize a vault.
+// Any non-empty file is rejected so it can never be overwritten accidentally.
+func OpenLockedForCreate(path string) (*Store, error) {
+	return openLocked(path, true)
+}
+
+func openLocked(path string, forCreate bool) (*Store, error) {
+	if forCreate {
+		// The explicit creation flow may target a new directory such as
+		// ~/vaults/ssh.vault. Create the parent chain before resolving the
+		// target so the canonical path is stable. Never do this for ordinary
+		// "open existing" actions.
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.MkdirAll(filepath.Dir(abs), 0o700); err != nil {
+			return nil, fmt.Errorf("create vault directory: %w", err)
+		}
+	}
 	target, err := resolveTarget(path)
 	if err != nil {
 		return nil, err
@@ -103,6 +129,18 @@ func OpenLocked(path string) (*Store, error) {
 	} else if info.IsDir() {
 		releaseLock(lf)
 		return nil, fmt.Errorf("vault path %s is a directory", target)
+	} else if !info.Mode().IsRegular() {
+		releaseLock(lf)
+		return nil, fmt.Errorf("vault path %s is not a regular file", target)
+	} else if info.Size() == 0 {
+		if !forCreate {
+			releaseLock(lf)
+			return nil, ErrEmptyVault
+		}
+		needsSetup = true
+	} else if forCreate {
+		releaseLock(lf)
+		return nil, ErrVaultExists
 	}
 	return &Store{path: target, lock: lf, locked: true, needsSetup: needsSetup}, nil
 }
@@ -296,8 +334,12 @@ func (s *Store) Create(password string) error {
 	if !s.needsSetup {
 		return ErrVaultExists
 	}
-	if _, err := os.Stat(s.path); err == nil {
-		return ErrVaultExists
+	if info, err := os.Stat(s.path); err == nil {
+		// Create may initialize a zero-byte placeholder, but never replace a
+		// file that contains data.
+		if !info.Mode().IsRegular() || info.Size() != 0 {
+			return ErrVaultExists
+		}
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -413,6 +455,13 @@ func releaseLock(f *os.File) {
 	}
 	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
 	_ = f.Close()
+}
+
+// ResolvePath returns the canonical path used for a vault. Existing symlinks
+// are resolved; for a missing file, the containing directory is resolved so
+// that path comparisons remain stable.
+func ResolvePath(path string) (string, error) {
+	return resolveTarget(path)
 }
 
 func resolveTarget(path string) (string, error) {

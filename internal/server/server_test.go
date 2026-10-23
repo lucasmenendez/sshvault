@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"sshvault/internal/preferences"
 	"sshvault/internal/sshutil"
 	"sshvault/internal/vault"
 )
@@ -96,6 +97,27 @@ func (e *testEnv) do(method, path string, body any, headers map[string]string) (
 		e.t.Fatal(err)
 	}
 	return resp.StatusCode, data
+}
+
+func TestBootstrapExposesDefaultVaultPath(t *testing.T) {
+	env := newTestEnv(t)
+	if err := os.MkdirAll(env.sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	status, data := env.do("GET", "/api/bootstrap", nil, nil)
+	if status != 200 {
+		t.Fatalf("bootstrap = %d %s", status, data)
+	}
+	var boot struct {
+		DefaultVaultPath string `json:"defaultVaultPath"`
+	}
+	if err := json.Unmarshal(data, &boot); err != nil {
+		t.Fatal(err)
+	}
+	want := canonicalPath(t, filepath.Join(env.sshDir, "ssh.vault"))
+	if boot.DefaultVaultPath != want {
+		t.Fatalf("defaultVaultPath = %q, want %q", boot.DefaultVaultPath, want)
+	}
 }
 
 func TestAPIFlow(t *testing.T) {
@@ -536,6 +558,18 @@ func TestRevisionConflictAndPasswordChange(t *testing.T) {
 	}
 }
 
+func canonicalPath(t *testing.T, path string) string {
+	t.Helper()
+	if p, err := filepath.EvalSymlinks(path); err == nil {
+		return p
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(dir, filepath.Base(path))
+}
+
 func newLockedTestEnv(t *testing.T, path string, exists bool) *testEnv {
 	t.Helper()
 	if exists {
@@ -666,6 +700,172 @@ func TestSetupAndOpenExistingVault(t *testing.T) {
 	}
 	if status, data := env.do("POST", "/api/vault/open", map[string]any{"path": filepath.Join(dir, "missing.vault")}, nil); status != http.StatusNotFound {
 		t.Fatalf("open missing = %d %s", status, data)
+	}
+}
+
+func TestNewVaultFromSettings(t *testing.T) {
+	dir := t.TempDir()
+	defaultPath := filepath.Join(dir, "default.vault")
+	env := newLockedTestEnv(t, defaultPath, true)
+
+	target := filepath.Join(dir, "new-parent", "new.vault")
+	status, data := env.do("POST", "/api/vault/new", map[string]any{"path": target}, nil)
+	if status != 200 {
+		t.Fatalf("new = %d %s", status, data)
+	}
+	wantTarget := canonicalPath(t, target)
+	if got := env.app.currentVaultPath(); got != wantTarget {
+		t.Fatalf("current path = %q, want %q", got, wantTarget)
+	}
+	status, data = env.do("GET", "/api/session", nil, nil)
+	if status != 200 || !strings.Contains(string(data), `"needsSetup":true`) {
+		t.Fatalf("session = %d %s", status, data)
+	}
+	if status, data := env.do("POST", "/api/setup", map[string]any{"password": apiPassword}, nil); status != 200 {
+		t.Fatalf("setup = %d %s", status, data)
+	}
+	if _, err := os.Stat(target); err != nil {
+		t.Fatal(err)
+	}
+
+	// The previous vault must have released its process lock.
+	old, err := vault.Open(canonicalPath(t, defaultPath), apiPassword)
+	if err != nil {
+		t.Fatalf("previous vault lock was not released: %v", err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewVaultOverEmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	env := newLockedTestEnv(t, filepath.Join(dir, "default.vault"), true)
+
+	target := filepath.Join(dir, "empty.vault")
+	if err := os.WriteFile(target, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if status, data := env.do("POST", "/api/vault/new", map[string]any{"path": target}, nil); status != 200 {
+		t.Fatalf("new empty = %d %s", status, data)
+	}
+	if status, data := env.do("POST", "/api/setup", map[string]any{"password": apiPassword}, nil); status != 200 {
+		t.Fatalf("setup empty = %d %s", status, data)
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() == 0 {
+		t.Fatal("empty file was not initialized")
+	}
+}
+
+func TestNewVaultRejectsExistingData(t *testing.T) {
+	dir := t.TempDir()
+	defaultPath := filepath.Join(dir, "default.vault")
+	env := newLockedTestEnv(t, defaultPath, true)
+
+	other := filepath.Join(dir, "other.vault")
+	s, err := vault.Create(other, apiPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	status, data := env.do("POST", "/api/vault/new", map[string]any{"path": other}, nil)
+	if status != http.StatusConflict || !strings.Contains(string(data), `"vault_exists"`) {
+		t.Fatalf("new existing = %d %s", status, data)
+	}
+	if got := env.app.currentVaultPath(); got != canonicalPath(t, defaultPath) {
+		t.Fatalf("current path changed to %q", got)
+	}
+}
+
+func TestOpenEmptyVaultReturnsSpecificError(t *testing.T) {
+	dir := t.TempDir()
+	env := newLockedTestEnv(t, filepath.Join(dir, "default.vault"), true)
+	empty := filepath.Join(dir, "empty.vault")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	status, data := env.do("POST", "/api/vault/open", map[string]any{"path": empty}, nil)
+	if status != http.StatusConflict || !strings.Contains(string(data), `"vault_empty"`) {
+		t.Fatalf("open empty = %d %s", status, data)
+	}
+}
+
+func TestOpenCurrentVaultThroughSymlinkedPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ssh.vault")
+	env := newLockedTestEnv(t, path, true)
+	status, data := env.do("POST", "/api/vault/open", map[string]any{"path": path}, nil)
+	if status != 200 {
+		t.Fatalf("open current = %d %s", status, data)
+	}
+	if status, data := env.do("GET", "/api/session", nil, nil); status != 200 || !strings.Contains(string(data), `"locked":true`) {
+		t.Fatalf("session = %d %s", status, data)
+	}
+}
+
+func TestPreferencesRememberOnlyAfterUnlock(t *testing.T) {
+	dir := t.TempDir()
+	defaultPath := filepath.Join(dir, "default.vault")
+	env := newLockedTestEnv(t, defaultPath, true)
+
+	prefsPath := filepath.Join(t.TempDir(), "config.json")
+	prefs, err := preferences.Open(prefsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.SetRemember(true, canonicalPath(t, defaultPath)); err != nil {
+		t.Fatal(err)
+	}
+	env.app.SetPreferences(prefs)
+
+	other := filepath.Join(dir, "other.vault")
+	s, err := vault.Create(other, apiPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status, data := env.do("POST", "/api/vault/open", map[string]any{"path": other}, nil); status != 200 {
+		t.Fatalf("open other = %d %s", status, data)
+	}
+	if status, _ := env.do("POST", "/api/unlock", map[string]any{"password": "wrongpass"}, nil); status != http.StatusUnauthorized {
+		t.Fatalf("wrong unlock = %d", status)
+	}
+	got, err := preferences.Open(prefsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg := got.Config(); cfg.LastVaultPath != canonicalPath(t, defaultPath) {
+		t.Fatalf("remembered after failed unlock = %#v", cfg)
+	}
+	if status, data := env.do("POST", "/api/unlock", map[string]any{"password": apiPassword}, nil); status != 200 {
+		t.Fatalf("unlock = %d %s", status, data)
+	}
+	got, err = preferences.Open(prefsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg := got.Config(); cfg.LastVaultPath != canonicalPath(t, other) {
+		t.Fatalf("remembered after unlock = %#v", cfg)
+	}
+
+	status, data := env.do("POST", "/api/preferences", map[string]any{"rememberVault": false}, nil)
+	if status != 200 {
+		t.Fatalf("disable remember = %d %s", status, data)
+	}
+	got, err = preferences.Open(prefsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg := got.Config(); cfg.RememberVault || cfg.LastVaultPath != "" {
+		t.Fatalf("after disabling = %#v", cfg)
 	}
 }
 

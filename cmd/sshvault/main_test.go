@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"sshvault/internal/preferences"
 	"sshvault/internal/sshutil"
 )
 
@@ -21,6 +22,59 @@ func TestChooseVaultPath(t *testing.T) {
 	path, isDefault = chooseVaultPath("/tmp/custom.vault", manager)
 	if path != "/tmp/custom.vault" || isDefault {
 		t.Fatalf("explicit path = %q, %v", path, isDefault)
+	}
+}
+
+func TestChooseVaultPathWithRememberedVault(t *testing.T) {
+	dir := t.TempDir()
+	manager, err := sshutil.NewManager(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remembered := filepath.Join(dir, "remembered.vault")
+	if err := os.WriteFile(remembered, []byte("vault"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prefs, err := preferences.Open(filepath.Join(t.TempDir(), "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.SetRemember(true, remembered); err != nil {
+		t.Fatal(err)
+	}
+
+	path, isDefault := chooseVaultPathWithPrefs("", manager, prefs, false)
+	if path != remembered || isDefault {
+		t.Fatalf("remembered path = %q, %v; want %q, false", path, isDefault, remembered)
+	}
+
+	path, isDefault = chooseVaultPathWithPrefs("", manager, prefs, true)
+	if want := filepath.Join(manager.Dir, "ssh.vault"); path != want || !isDefault {
+		t.Fatalf("explicit ssh-dir path = %q, %v; want %q, true", path, isDefault, want)
+	}
+
+	path, isDefault = chooseVaultPathWithPrefs("/tmp/custom.vault", manager, prefs, false)
+	if path != "/tmp/custom.vault" || isDefault {
+		t.Fatalf("explicit path = %q, %v", path, isDefault)
+	}
+}
+
+func TestChooseVaultPathFallsBackWhenRememberedIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	manager, err := sshutil.NewManager(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefs, err := preferences.Open(filepath.Join(t.TempDir(), "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.SetRemember(true, filepath.Join(dir, "missing.vault")); err != nil {
+		t.Fatal(err)
+	}
+	path, isDefault := chooseVaultPathWithPrefs("", manager, prefs, false)
+	if want := filepath.Join(manager.Dir, "ssh.vault"); path != want || !isDefault {
+		t.Fatalf("fallback path = %q, %v; want %q, true", path, isDefault, want)
 	}
 }
 

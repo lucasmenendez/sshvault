@@ -19,6 +19,7 @@ import (
 	"github.com/crgimenes/glaze"
 	"golang.org/x/term"
 
+	"sshvault/internal/preferences"
 	"sshvault/internal/server"
 	"sshvault/internal/sshutil"
 	"sshvault/internal/vault"
@@ -97,15 +98,29 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	vaultPath, defaultVault := chooseVaultPath(explicitVault, manager)
+
+	prefsPath, prefsErr := preferences.DefaultPath()
+	var prefs *preferences.Manager
+	if prefsErr == nil {
+		prefs, prefsErr = preferences.Open(prefsPath)
+	}
+	if prefsErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: cannot load preferences: %v\n", prefsErr)
+	}
+
+	vaultPath, defaultVault := chooseVaultPathWithPrefs(explicitVault, manager, prefs, sshDirFlag != "")
 	if vaultPath == "" {
 		return errors.New("empty vault path")
 	}
 	legacyHint := legacyVaultHint(vaultPath, defaultVault)
-	if defaultVault && !changePassword {
+	if !changePassword {
 		if _, err := os.Stat(vaultPath); os.IsNotExist(err) {
-			if err := manager.EnsureDir(); err != nil {
-				return err
+			if defaultVault {
+				if err := manager.EnsureDir(); err != nil {
+					return err
+				}
+			} else if err := os.MkdirAll(filepath.Dir(vaultPath), 0o700); err != nil {
+				return fmt.Errorf("create vault directory: %w", err)
 			}
 		}
 	}
@@ -139,6 +154,11 @@ func run() error {
 			}
 		}
 		store, err = vault.OpenLocked(vaultPath)
+		if errors.Is(err, vault.ErrEmptyVault) {
+			// An empty file is treated as an uninitialized vault path so the
+			// web UI can offer to create it. Non-empty files are never touched.
+			store, err = vault.OpenLockedForCreate(vaultPath)
+		}
 	}
 	if err != nil {
 		return err
@@ -159,6 +179,7 @@ func run() error {
 
 	app := server.New(store, manager, store.Path(), manager.Dir, version, lockAfter)
 	defer func() { _ = app.Close() }()
+	app.SetPreferences(prefs)
 	app.SetPort(port)
 
 	primaryHost := host
@@ -381,10 +402,28 @@ func readLine(prompt string) (string, error) {
 }
 
 func chooseVaultPath(explicit string, manager *sshutil.Manager) (string, bool) {
+	return chooseVaultPathWithPrefs(explicit, manager, nil, false)
+}
+
+func chooseVaultPathWithPrefs(explicit string, manager *sshutil.Manager, prefs *preferences.Manager, sshDirExplicit bool) (string, bool) {
 	if explicit != "" {
 		return explicit, false
 	}
+	if !sshDirExplicit && prefs != nil {
+		cfg := prefs.Config()
+		if cfg.RememberVault && usableVaultPath(cfg.LastVaultPath) {
+			return cfg.LastVaultPath, false
+		}
+	}
 	return filepath.Join(manager.Dir, "ssh.vault"), true
+}
+
+func usableVaultPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular() && info.Size() > 0
 }
 
 func legacyVaultHint(vaultPath string, defaultVault bool) string {

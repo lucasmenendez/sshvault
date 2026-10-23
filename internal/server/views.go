@@ -74,8 +74,10 @@ type bootstrapResponse struct {
 	InternalFiles    []string   `json:"internalFiles"`
 	Tags             []string   `json:"tags"`
 	SSHDir           string     `json:"sshDir"`
+	DefaultVaultPath string     `json:"defaultVaultPath"`
 	Locked           bool       `json:"locked"`
 	LockAfterSeconds int        `json:"lockAfterSeconds"`
+	RememberVault    bool       `json:"rememberVault"`
 	Version          string     `json:"version"`
 	ConfigWarnings   []string   `json:"configWarnings"`
 	ConfigError      string     `json:"configError,omitempty"`
@@ -130,6 +132,10 @@ func (a *App) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	if warnings == nil {
 		warnings = []string{}
 	}
+	rememberVault := false
+	if a.prefs != nil {
+		rememberVault = a.prefs.Config().RememberVault
+	}
 	writeJSON(w, http.StatusOK, bootstrapResponse{
 		Vault: vaultInfo{
 			Path:      a.currentVaultPath(),
@@ -143,8 +149,10 @@ func (a *App) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		InternalFiles:    internalFiles,
 		Tags:             snap.AllTags(),
 		SSHDir:           a.sshDir,
+		DefaultVaultPath: a.defaultVaultPath(),
 		Locked:           false,
 		LockAfterSeconds: int(a.lockAfter.Seconds()),
+		RememberVault:    rememberVault,
 		Version:          a.version,
 		ConfigWarnings:   warnings,
 		ConfigError:      configError,

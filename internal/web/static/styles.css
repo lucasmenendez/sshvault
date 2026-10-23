@@ -628,7 +628,8 @@ html.native-window .shell {
 .lock-card h1 { margin: 0; font-size: 21px; letter-spacing: -.4px; }
 .lock-card p { margin: 0 0 4px; color: var(--text-2); font-size: 13px; }
 button.wide { width: 100%; padding: 9px 12px; }
-.lock-open { margin-top: 2px; }
+.lock-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.lock-open { margin-top: 0; }
 
 /* Toasts */
 .toasts { position: fixed; right: 18px; bottom: 18px; z-index: 120; display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
@@ -709,9 +710,10 @@ button.wide { width: 100%; padding: 9px 12px; }
 .upload-zone:hover { border-color: var(--accent); color: var(--text-2); }
 .file-drop { border: 1px dashed var(--border-strong); border-radius: 10px; padding: 14px; background: var(--surface-2); font-size: 12.5px; color: var(--text-2); }
 .pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; font-size: 12.5px; }
-.kv dt { color: var(--text-3); }
+.kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; font-size: 12.5px; align-items: center; }
+.kv dt { margin: 0; color: var(--text-3); }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.kv dt, .kv dd { align-self: center; }
 .setting-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
 .setting-row:last-child { border-bottom: 0; }
 .setting-row .setting-text { flex: 1; }

@@ -2454,6 +2454,26 @@ function renderSettings() {
     h('dt', { text: 'Version' }), h('dd', { text: state.data.version }),
   );
 
+  const defaultVaultPath = state.data.defaultVaultPath;
+  const isDefaultVault = Boolean(defaultVaultPath) && state.data.vault.path === defaultVaultPath;
+  const remember = h('input', { type: 'checkbox', checked: Boolean(state.data.rememberVault) });
+  remember.addEventListener('change', async () => {
+    remember.disabled = true;
+    try {
+      const res = await api('/api/preferences', {
+        method: 'POST',
+        body: { rememberVault: remember.checked },
+      });
+      state.data.rememberVault = Boolean(res.rememberVault);
+      toast(res.rememberVault ? 'Last vault will be remembered' : 'Last vault will not be remembered', 'ok');
+    } catch (e) {
+      remember.checked = !remember.checked;
+      toastError(e);
+    } finally {
+      remember.disabled = false;
+    }
+  });
+
   const security = h('article', { class: 'panel' },
     h('header', { class: 'panel-head' }, icon('shield'), h('h2', { text: 'Security' })),
     h('div', { class: 'setting-row' },
@@ -2468,9 +2488,23 @@ function renderSettings() {
       h('div', { class: 'setting-text' }, h('h3', { text: 'Lock now' }), h('p', { text: 'Closes the web session until you enter the password again.' })),
       btn('Lock', 'lock', lockNow, 'btn'),
     ),
+    defaultVaultPath && !isDefaultVault
+      ? h('div', { class: 'setting-row' },
+        h('div', { class: 'setting-text' }, h('h3', { text: 'Open default vault' }), h('p', { class: 'mono', text: defaultVaultPath })),
+        btn('Open default', 'folder', openDefaultVault, 'btn'),
+      )
+      : null,
     h('div', { class: 'setting-row' },
       h('div', { class: 'setting-text' }, h('h3', { text: 'Open existing vault' }), h('p', { text: 'Switch to another sshvault file on this machine.' })),
       btn('Open…', 'folder', openExistingVault, 'btn'),
+    ),
+    h('div', { class: 'setting-row' },
+      h('div', { class: 'setting-text' }, h('h3', { text: 'Create new vault' }), h('p', { text: 'Start a new encrypted vault at another path.' })),
+      btn('Create…', 'plus', openNewVault, 'btn'),
+    ),
+    h('div', { class: 'setting-row' },
+      h('div', { class: 'setting-text' }, h('h3', { text: 'Remember last vault' }), h('p', { text: 'Open the last successfully unlocked vault on startup. Only the path is stored, never the password.' })),
+      h('label', { class: 'switch' }, remember, h('span', { text: 'Enabled' })),
     ),
   );
 
@@ -2657,13 +2691,47 @@ async function unlockSubmit(e) {
 }
 
 async function openExistingVault() {
+  await openVaultDialog('open');
+}
+
+async function openNewVault() {
+  await openVaultDialog('new');
+}
+
+async function openDefaultVault() {
+  const path = state.data?.defaultVaultPath;
+  if (!path) return;
+  try {
+    await api('/api/vault/open', { method: 'POST', body: { path } });
+    state.data = null;
+    $('#shell').hidden = true;
+    $('#boot').hidden = true;
+    await showLock();
+    toast('Default vault opened; enter its password.', 'ok');
+  } catch (err) {
+    if (err.code === 'vault_not_found') {
+      toast(`Default vault not found: ${path}`, 'err');
+    } else if (err.code === 'vault_empty') {
+      toast('The default vault is empty. Use Create new vault to initialize it.', 'err');
+    } else {
+      toastError(err);
+    }
+  }
+}
+
+async function openVaultDialog(mode) {
+  const isNew = mode === 'new';
   if (!state.canPickVault) {
     try {
       const session = await api('/api/session');
       state.canPickVault = Boolean(session?.canPickVault);
     } catch { /* locked is handled by api */ }
   }
-  const pathInput = h('input', { class: 'input mono', placeholder: '~/.ssh/ssh.vault', autocomplete: 'off' });
+  const pathInput = h('input', {
+    class: 'input mono',
+    placeholder: isNew ? '~/vaults/new.vault' : '~/.ssh/ssh.vault',
+    autocomplete: 'off',
+  });
   const browse = state.canPickVault
     ? btn('Browse…', 'folder', async () => {
       browse.disabled = true;
@@ -2674,30 +2742,40 @@ async function openExistingVault() {
       finally { browse.disabled = false; }
     }, 'btn')
     : null;
-  const open = btn('Open', 'folder', async () => {
+  const action = btn(isNew ? 'Create' : 'Open', 'folder', async () => {
     const path = pathInput.value.trim();
     if (!path) { m.error('Vault path is required.'); return; }
-    open.disabled = true;
+    action.disabled = true;
     try {
-      await api('/api/vault/open', { method: 'POST', body: { path } });
+      await api(isNew ? '/api/vault/new' : '/api/vault/open', { method: 'POST', body: { path } });
       m.close();
       state.data = null;
       $('#shell').hidden = true;
       $('#boot').hidden = true;
       await showLock();
-      toast('Vault opened; enter its password.', 'ok');
-    } catch (err) { m.error(err.message || String(err)); }
-    finally { open.disabled = false; }
+      toast(isNew ? 'New vault path selected; set its password.' : 'Vault opened; enter its password.', 'ok');
+    } catch (err) {
+      if (!isNew && err.code === 'vault_empty') {
+        m.error('This file is empty. Use Create new vault to initialize it.');
+      } else if (!isNew && err.code === 'vault_not_found') {
+        m.error('Vault not found. Use Create new vault to create one at this path.');
+      } else {
+        m.error(err.message || String(err));
+      }
+    } finally { action.disabled = false; }
   }, 'btn primary');
   const m = openModal({
-    title: 'Open existing vault',
-    subtitle: 'Choose another sshvault file on this machine.',
+    title: isNew ? 'Create new vault' : 'Open existing vault',
+    subtitle: isNew
+      ? 'Choose a new path. You will set its password next.'
+      : 'Choose another sshvault file on this machine.',
     body: h('div', { class: 'flex-col gap-16' },
       state.data ? h('p', { class: 'hint', text: 'The current vault will be closed. Saved changes are kept.' }) : null,
+      isNew ? h('p', { class: 'hint', text: 'The path may not exist or may be an empty file. Existing non-empty files are never overwritten.' }) : null,
       field('Vault path', pathInput, 'Absolute path or ~/…'),
       browse ? h('div', { class: 'inline wrap' }, browse, h('span', { class: 'hint', text: 'Use the native file picker.' })) : null,
     ),
-    footer: [h('div', { class: 'spacer' }), btn('Cancel', null, () => m.close(), 'btn'), open],
+    footer: [h('div', { class: 'spacer' }), btn('Cancel', null, () => m.close(), 'btn'), action],
   });
 }
 
@@ -2712,6 +2790,7 @@ function bindEvents() {
   $('#lock-now').addEventListener('click', lockNow);
   $('#unlock-form').addEventListener('submit', unlockSubmit);
   $('#open-vault-lock').addEventListener('click', openExistingVault);
+  $('#new-vault-lock').addEventListener('click', openNewVault);
 
   document.addEventListener('click', closeAllPopovers);
   document.addEventListener('keydown', (e) => {

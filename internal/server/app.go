@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"sshvault/internal/preferences"
 	"sshvault/internal/sshutil"
 	"sshvault/internal/vault"
 	"sshvault/internal/web"
@@ -43,6 +44,7 @@ type App struct {
 	unlockBlockedUntil time.Time
 
 	picker func() (string, error)
+	prefs  *preferences.Manager
 	mux    http.Handler
 }
 
@@ -67,7 +69,9 @@ func New(store *vault.Store, manager *sshutil.Manager, vaultPath, sshDir, versio
 	mux.HandleFunc("POST /api/password", a.handlePassword)
 	mux.HandleFunc("POST /api/setup", a.handleSetup)
 	mux.HandleFunc("POST /api/vault/open", a.handleOpenVault)
+	mux.HandleFunc("POST /api/vault/new", a.handleNewVault)
 	mux.HandleFunc("POST /api/vault/pick", a.handlePickVault)
+	mux.HandleFunc("POST /api/preferences", a.handlePreferences)
 
 	mux.HandleFunc("GET /api/config/preview", a.handleConfigPreview)
 	mux.HandleFunc("GET /api/config/duplicates", a.handleDuplicates)
@@ -161,25 +165,79 @@ func (a *App) SetVaultPicker(picker func() (string, error)) {
 	a.picker = picker
 }
 
+// SetPreferences installs the optional preferences manager used by the
+// "Remember last vault" setting.
+func (a *App) SetPreferences(prefs *preferences.Manager) {
+	a.prefs = prefs
+}
+
 func (a *App) canPickVault() bool { return a.picker != nil }
+
+func (a *App) defaultVaultPath() string {
+	path := filepath.Join(a.sshDir, "ssh.vault")
+	if resolved, err := vault.ResolvePath(path); err == nil {
+		return resolved
+	}
+	return path
+}
+
+func (a *App) rememberCurrentVault() {
+	if a.prefs == nil {
+		return
+	}
+	if err := a.prefs.Remember(a.currentVaultPath()); err != nil {
+		slog.Warn("cannot remember vault path", "err", err)
+	}
+}
 
 // OpenVault switches the app to an existing vault file and leaves it locked.
 func (a *App) OpenVault(path string) error {
+	target, err := vault.ResolvePath(path)
+	if err != nil {
+		return err
+	}
 	current := a.currentStore()
-	if current.Path() == path {
+	if current.Path() == target {
 		if current.NeedsSetup() {
 			return vault.ErrNotFound
 		}
 		current.Lock()
 		return nil
 	}
-	next, err := vault.OpenLocked(path)
+	next, err := vault.OpenLocked(target)
 	if err != nil {
 		return err
 	}
 	if next.NeedsSetup() {
 		_ = next.Close()
 		return vault.ErrNotFound
+	}
+	a.replaceStore(next)
+	return nil
+}
+
+// NewVault switches the app to a path where a new vault can be created. The
+// target must not exist yet or must be an empty placeholder file.
+func (a *App) NewVault(path string) error {
+	target, err := vault.ResolvePath(path)
+	if err != nil {
+		return err
+	}
+	current := a.currentStore()
+	if current.Path() == target {
+		if current.NeedsSetup() {
+			current.Lock()
+			return nil
+		}
+		return vault.ErrVaultExists
+	}
+	next, err := vault.OpenLockedForCreate(target)
+	if err != nil {
+		return err
+	}
+	if !next.NeedsSetup() {
+		_ = next.Close()
+		return vault.ErrVaultExists
 	}
 	a.replaceStore(next)
 	return nil
@@ -276,7 +334,7 @@ func (a *App) checkIdle() {
 
 func lockedEndpoint(path string) bool {
 	switch path {
-	case "/api/session", "/api/unlock", "/api/setup", "/api/vault/open", "/api/vault/pick":
+	case "/api/session", "/api/unlock", "/api/setup", "/api/vault/open", "/api/vault/new", "/api/vault/pick":
 		return true
 	default:
 		return false
@@ -342,6 +400,7 @@ func (a *App) handleUnlock(w http.ResponseWriter, r *http.Request) {
 	a.unlockFails = 0
 	a.unlockBlockedUntil = time.Time{}
 	a.lastActivity = now
+	a.rememberCurrentVault()
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -402,6 +461,7 @@ func (a *App) handleSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	a.rememberCurrentVault()
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false, "created": true})
 }
 
@@ -421,6 +481,8 @@ func (a *App) handleOpenVault(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, vault.ErrNotFound):
 			writeError(w, http.StatusNotFound, "vault_not_found", "vault file not found", nil)
+		case errors.Is(err, vault.ErrEmptyVault):
+			writeError(w, http.StatusConflict, "vault_empty", "this file is empty; use Create new vault to initialize it", nil)
 		case errors.Is(err, vault.ErrInUse):
 			writeError(w, http.StatusConflict, "vault_in_use", "this vault is already open by another sshvault process", nil)
 		default:
@@ -429,6 +491,54 @@ func (a *App) handleOpenVault(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"locked": true, "path": path})
+}
+
+func (a *App) handleNewVault(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Path string `json:"path"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	path, err := resolveVaultPath(req.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_path", err.Error(), nil)
+		return
+	}
+	if err := a.NewVault(path); err != nil {
+		switch {
+		case errors.Is(err, vault.ErrVaultExists):
+			writeError(w, http.StatusConflict, "vault_exists", "a non-empty file already exists at this path", nil)
+		case errors.Is(err, vault.ErrInUse):
+			writeError(w, http.StatusConflict, "vault_in_use", "this vault is already open by another sshvault process", nil)
+		default:
+			writeError(w, http.StatusBadRequest, "new_failed", err.Error(), nil)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"locked": true, "needsSetup": true, "path": path})
+}
+
+func (a *App) handlePreferences(w http.ResponseWriter, r *http.Request) {
+	if a.prefs == nil {
+		writeError(w, http.StatusServiceUnavailable, "preferences_unavailable", "preferences are unavailable", nil)
+		return
+	}
+	var req struct {
+		RememberVault *bool `json:"rememberVault"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.RememberVault == nil {
+		writeError(w, http.StatusBadRequest, "invalid_preferences", "rememberVault is required", nil)
+		return
+	}
+	if err := a.prefs.SetRemember(*req.RememberVault, a.currentVaultPath()); err != nil {
+		writeError(w, http.StatusInternalServerError, "preferences_failed", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rememberVault": *req.RememberVault})
 }
 
 func (a *App) handlePickVault(w http.ResponseWriter, r *http.Request) {
