@@ -141,6 +141,26 @@ The CLI no longer prompts for the password in the terminal during normal startup
 | `--change-password` | Change the password in the terminal and exit. |
 | `--version` | Print the version. |
 
+## Keyboard shortcuts
+
+In the native macOS app, the menu bar provides standard editing and application shortcuts:
+
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+O` | Open an existing vault |
+| `Cmd+N` | Create a new vault |
+| `Cmd+L` | Lock the vault |
+| `Cmd+,` | Open Settings |
+| `Cmd+/` | Show the keyboard shortcut map |
+| `Cmd+C` / `Cmd+V` / `Cmd+X` | Copy, paste, cut |
+| `Cmd+A` | Select all |
+| `Cmd+Z` / `Shift+Cmd+Z` | Undo / redo |
+| `Cmd+Q` | Quit SSHVault |
+| `Cmd+W` | Close the window |
+| `Cmd+M` | Minimize |
+
+The same vault and shortcut map are available in the browser, except for shortcuts the browser reserves (`Cmd+Q` and, on some systems, `Cmd+L`). The shortcut map is also available from **Settings → Keyboard**.
+
 ## Security
 
 - **Encryption**: Argon2id (64 MiB, 3 passes, 4 threads) + XChaCha20-Poly1305. The header is authenticated as AAD.
@@ -205,6 +225,14 @@ Only deployed hosts are considered. Imported but undeployed hosts do not generat
 - **System / Light / Dark** selector in Settings. It is stored in `localStorage`; **System** follows `prefers-color-scheme`.
 - `<dialog><article>` modals, buttons, and forms based on Sumi. Tables and the action column do not duplicate borders or shadows.
 - The **Copy** and **Command** menus are Sumi dropdowns (`<details class="dropdown">`); the panel is mounted on `body` when opened so it stays above the table.
+
+## Changes 0.7.7
+
+- Added a native macOS menu with standard Edit actions, so Cmd+C/V/X/A/Z work inside the app.
+- Added a working Quit item with Cmd+Q.
+- Added native shortcuts for opening a vault (Cmd+O), creating one (Cmd+N), locking (Cmd+L), Settings (Cmd+,), and the shortcut map (Cmd+/).
+- Added a Keyboard Shortcuts dialog in Settings and a browser fallback for shortcuts that are not reserved by the browser.
+- Cmd+W and Cmd+M now work through the standard Window menu.
 
 ## Changes 0.7.6
 

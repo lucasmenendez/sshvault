@@ -773,3 +773,25 @@ button.wide { width: 100%; padding: 9px 12px; }
 /* App table focus and cell helpers */
 .data-table tbody tr:focus-visible { outline: 2px solid var(--s-primary); outline-offset: -2px; }
 .data-table .cell { min-width: 0; }
+
+/* Keyboard shortcuts */
+.shortcut-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+.shortcut-group h3 {
+  margin: 0 0 8px; color: var(--text-3);
+  font-family: var(--mono); font-size: 10px;
+  font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+}
+.shortcut-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.shortcut-row:last-child { border-bottom: 0; }
+.shortcut-keys { display: inline-flex; align-items: center; gap: 4px; min-width: 86px; }
+.shortcut-keys kbd {
+  display: inline-grid; place-items: center; min-width: 20px; height: 21px;
+  padding: 0 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px;
+  border-radius: 4px; background: var(--surface-2); color: var(--text-2);
+  font-family: var(--mono); font-size: 10px; line-height: 1;
+}
+.shortcut-label { color: var(--text-2); font-size: 12px; }
+@media (max-width: 680px) {
+  .shortcut-groups { grid-template-columns: 1fr; gap: 16px; }
+  .shortcut-keys { min-width: 76px; }
+}

@@ -2549,6 +2549,14 @@ function renderSettings() {
     ),
   );
 
+  const keyboard = h('article', { class: 'panel' },
+    h('header', { class: 'panel-head' }, icon('terminal'), h('h2', { text: 'Keyboard' })),
+    h('div', { class: 'setting-row' },
+      h('div', { class: 'setting-text' }, h('h3', { text: 'Keyboard shortcuts' }), h('p', { text: 'Open vaults, lock the vault and find every shortcut without leaving the keyboard.' })),
+      btn('View shortcuts', 'terminal', openShortcuts, 'btn'),
+    ),
+  );
+
   const about = h('article', { class: 'panel' },
     h('header', { class: 'panel-head' }, icon('shield'), h('h2', { text: 'How it works' })),
     h('p', { class: 'text-sm muted', style: { margin: '0 0 10px' }, text: 'All vault content is encrypted with Argon2id and XChaCha20-Poly1305. The password is not stored on disk. Files in ~/.ssh are the local projection of the entries you choose to deploy.' }),
@@ -2560,6 +2568,7 @@ function renderSettings() {
     security,
     tools,
     appearance,
+    keyboard,
     about,
   );
 }
@@ -2722,6 +2731,76 @@ async function openDefaultVault() {
   }
 }
 
+function openSettings() {
+  if (!state.data) return;
+  setView('settings');
+}
+
+function lockFromShortcut() {
+  if (state.data) lockNow();
+}
+
+function openShortcuts() {
+  const groups = [
+    ['Vault', [
+      ['⌘ O', 'Open existing vault'],
+      ['⌘ N', 'Create new vault'],
+      ['⌘ L', 'Lock vault'],
+      ['⌘ ,', 'Settings'],
+      ['⌘ /', 'Keyboard shortcuts'],
+    ]],
+    ['Editing', [
+      ['⌘ C', 'Copy'],
+      ['⌘ V', 'Paste'],
+      ['⌘ X', 'Cut'],
+      ['⌘ A', 'Select all'],
+      ['⌘ Z', 'Undo'],
+      ['⇧ ⌘ Z', 'Redo'],
+    ]],
+    ['Application', [
+      ['⌘ Q', 'Quit SSHVault'],
+      ['⌘ W', 'Close window'],
+      ['⌘ M', 'Minimize'],
+      ['Esc', 'Close dialog'],
+    ]],
+  ];
+  const row = ([keys, label]) => h('div', { class: 'shortcut-row' },
+    h('span', { class: 'shortcut-keys' }, ...keys.split(' ').map((key) => h('kbd', { text: key }))),
+    h('span', { class: 'shortcut-label', text: label }),
+  );
+  const body = h('div', { class: 'shortcut-groups' },
+    ...groups.map(([title, entries]) => h('section', { class: 'shortcut-group' },
+      h('h3', { text: title }),
+      ...entries.map(row),
+    )),
+  );
+  const m = openModal({
+    title: 'Keyboard shortcuts',
+    subtitle: 'These shortcuts work in the native app. Browser behavior can differ where the browser reserves a shortcut.',
+    body,
+    footer: [h('div', { class: 'spacer' }), btn('Close', null, () => m.close(), 'btn primary')],
+  });
+}
+
+function bindBrowserShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (document.documentElement.classList.contains('native-window')) return;
+    if (e.metaKey && !e.ctrlKey && !e.altKey) {
+      const key = e.key.toLowerCase();
+      if (key === 'o') { e.preventDefault(); openExistingVault(); return; }
+      if (key === 'n') { e.preventDefault(); openNewVault(); return; }
+      if (key === 'l') { e.preventDefault(); lockFromShortcut(); return; }
+      if (key === ',') { e.preventDefault(); openSettings(); return; }
+      if (key === '/') { e.preventDefault(); openShortcuts(); return; }
+    }
+    if (e.key !== '?' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const target = e.target;
+    if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    e.preventDefault();
+    openShortcuts();
+  });
+}
+
 async function openVaultDialog(mode) {
   const isNew = mode === 'new';
   if (!state.canPickVault) {
@@ -2796,6 +2875,7 @@ function bindEvents() {
   $('#new-vault-lock').addEventListener('click', openNewVault);
 
   document.addEventListener('click', closeAllPopovers);
+  bindBrowserShortcuts();
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeAllPopovers();
     if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -2832,6 +2912,14 @@ function bootError(err) {
     ),
   );
 }
+
+window.__sshvault = {
+  openExistingVault,
+  openNewVault,
+  lockVault: lockFromShortcut,
+  openSettings,
+  openShortcuts,
+};
 
 async function init() {
   applyTheme();
