@@ -39,6 +39,8 @@ También puedes usar `go install ./cmd/sshvault`.
 
 ```bash
 brew tap lucasmenendez/sshvault
+# Homebrew 7 o superior: autorizar el tap de terceros
+brew trust lucasmenendez/sshvault
 brew install sshvault
 sshvault --ui
 ```
