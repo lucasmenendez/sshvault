@@ -1,0 +1,139 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      valid: ${{ steps.check.outputs.valid }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Validate tag
+        id: check
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            echo "Tag '$tag' is not vMAJOR.MINOR.PATCH; skipping release."
+          fi
+
+  release:
+    needs: validate
+    if: needs.validate.outputs.valid == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: |
+          go test ./...
+          go vet ./...
+
+      - name: Build universal macOS binary
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/stage
+
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+            go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o dist/sshvault-arm64 ./cmd/sshvault
+
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
+            go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o dist/sshvault-amd64 ./cmd/sshvault
+
+          lipo -create \
+            -output dist/sshvault \
+            dist/sshvault-arm64 dist/sshvault-amd64
+
+          chmod +x dist/sshvault
+          cp dist/sshvault dist/stage/sshvault
+          cp LICENSE README.md dist/stage/
+
+          tar -czf dist/sshvault-darwin-universal.tar.gz \
+            -C dist/stage sshvault LICENSE README.md
+
+          shasum -a 256 dist/sshvault-darwin-universal.tar.gz \
+            | tee dist/checksums.txt
+
+          file dist/sshvault
+          lipo -info dist/sshvault
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              dist/sshvault-darwin-universal.tar.gz \
+              dist/checksums.txt --clobber
+          else
+            gh release create "$TAG" \
+              dist/sshvault-darwin-universal.tar.gz \
+              dist/checksums.txt \
+              --title "sshvault ${VERSION}" \
+              --notes "Universal macOS binary. Source: https://github.com/lucasmenendez/sshvault/tree/${TAG}" \
+              --verify-tag
+          fi
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: lucasmenendez/homebrew-sshvault
+          path: tap
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          persist-credentials: true
+
+      - name: Update Homebrew formula
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          SHA256="$(awk '{print $1}' dist/checksums.txt)"
+          mkdir -p tap/Formula
+          sed \
+            -e "s/__VERSION__/${VERSION}/g" \
+            -e "s/__SHA256__/${SHA256}/g" \
+            packaging/homebrew/sshvault.rb.tmpl > tap/Formula/sshvault.rb
+          ruby -c tap/Formula/sshvault.rb
+
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if [ -z "$(git -C tap status --porcelain -- Formula/sshvault.rb)" ]; then
+            echo "Formula is already up to date."
+            exit 0
+          fi
+
+          git -C tap add Formula/sshvault.rb
+          git -C tap commit -m "sshvault ${VERSION}"
+          git -C tap push origin HEAD:main

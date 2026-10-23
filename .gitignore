@@ -1,0 +1,19 @@
+# Binarios y vaults locales
+/sshvault
+/ssh.vault
+*.vault
+*.vault.lock
+*.vault.bak.*
+*.lock
+.DS_Store
+
+# Entornos (aunque este proyecto no los necesita)
+.env
+.env.*
+*.env
+!.env.example
+!.env.template
+
+/sshvault-*
+/dist/
+/ssh.backup.zip
