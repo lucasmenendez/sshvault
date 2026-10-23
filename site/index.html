@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
   <title>sshvault — a local encrypted vault for SSH</title>
   <meta name="description" content="A local-first, encrypted vault for SSH keys, certificates, hosts and files. Native macOS app and Homebrew install.">
   <meta property="og:title" content="sshvault — a local encrypted vault for SSH">
@@ -12,6 +12,7 @@
   <meta property="og:url" content="https://lucasmenendez.github.io/sshvault/">
   <meta property="og:image" content="https://lucasmenendez.github.io/sshvault/assets/screenshots/keys-list.png">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/sumi.css">
   <link rel="stylesheet" href="styles.css">
   <script src="main.js" defer></script>
 </head>
@@ -39,6 +40,14 @@
       <a href="#install">Install</a>
       <a href="#security">Security</a>
     </nav>
+    <label class="theme-control">
+      <span class="sr-only">Theme</span>
+      <select id="theme-select" aria-label="Theme">
+        <option value="">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </label>
     <a class="button small" href="https://github.com/lucasmenendez/sshvault">GitHub <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
   </header>
 

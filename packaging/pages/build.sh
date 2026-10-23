@@ -9,6 +9,7 @@ mkdir -p "$OUT/assets/screenshots"
 
 cp -R "$ROOT/site/." "$OUT/"
 cp "$ROOT/screenshots/optimized/"*.png "$OUT/assets/screenshots/"
+cp "$ROOT/internal/web/static/sumi.css" "$OUT/assets/sumi.css"
 cp "$ROOT/internal/web/static/favicon.svg" "$OUT/favicon.svg"
 cp "$ROOT/LICENSE" "$OUT/LICENSE.txt"
 touch "$OUT/.nojekyll"

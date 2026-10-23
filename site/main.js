@@ -1,4 +1,22 @@
 (() => {
+  const themeKey = 'sshvault-theme';
+  const root = document.documentElement;
+  const select = document.getElementById('theme-select');
+  let stored = '';
+  try { stored = localStorage.getItem(themeKey) || ''; } catch { /* storage unavailable */ }
+  if (stored) root.dataset.theme = stored;
+  if (select) {
+    select.value = stored;
+    select.addEventListener('change', () => {
+      const value = select.value;
+      if (value) root.dataset.theme = value;
+      else delete root.dataset.theme;
+      try { localStorage.setItem(themeKey, value); } catch { /* storage unavailable */ }
+    });
+  }
+})();
+
+(() => {
   const buttons = document.querySelectorAll('[data-copy]');
 
   for (const button of buttons) {
