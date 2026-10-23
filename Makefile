@@ -1,11 +1,22 @@
 BINARY  := sshvault
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.7.4)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.7.5)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build test vet fmt run clean cross
+.PHONY: build app install-app test vet fmt run clean cross
 
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/sshvault
+
+app: build
+	SSHVAULT_BIN="$(CURDIR)/$(BINARY)" \
+	SSHVAULT_APP="$(CURDIR)/build/SSHVault.app" \
+	SSHVAULT_VERSION="$(VERSION)" \
+	./packaging/macos/build-app.sh
+
+install-app: app
+	mkdir -p "$(HOME)/Applications"
+	rm -rf "$(HOME)/Applications/SSHVault.app"
+	ditto "$(CURDIR)/build/SSHVault.app" "$(HOME)/Applications/SSHVault.app"
 
 test:
 	go test -race ./...
@@ -21,6 +32,7 @@ run:
 
 clean:
 	rm -f $(BINARY) $(BINARY)-*
+	rm -rf build
 
 cross:
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY)-darwin-arm64 ./cmd/sshvault

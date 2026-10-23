@@ -17,3 +17,5 @@
 /sshvault-*
 /dist/
 /ssh.backup.zip
+
+/build/

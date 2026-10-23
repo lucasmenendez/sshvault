@@ -3,6 +3,10 @@
 package main
 
 import (
+	"fmt"
+	"os/exec"
+	"strings"
+
 	"github.com/crgimenes/glaze"
 	"github.com/ebitengine/purego/objc"
 )
@@ -34,4 +38,13 @@ func configureNativeWindow(w glaze.WebView) {
 	if objc.Send[bool](win, objc.RegisterName("respondsToSelector:"), separator) {
 		win.Send(separator, uint(nsWindowTitlebarSeparatorStyleNone))
 	}
+}
+
+// showAppError is used when the app is launched from Finder and has no
+// terminal attached, so startup errors are still visible.
+func showAppError(err error) {
+	msg := strings.ReplaceAll(err.Error(), `\`, `\\`)
+	msg = strings.ReplaceAll(msg, `"`, `\"`)
+	script := fmt.Sprintf(`display alert "SSHVault" message "%s" as critical`, msg)
+	_ = exec.Command("osascript", "-e", script).Run()
 }

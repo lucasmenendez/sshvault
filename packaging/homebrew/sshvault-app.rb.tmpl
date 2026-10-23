@@ -1,0 +1,19 @@
+cask "sshvault-app" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/lucasmenendez/sshvault/releases/download/v__VERSION__/SSHVault-__VERSION__.zip"
+  name "SSHVault"
+  desc "Local encrypted vault and UI for SSH keys, hosts and files"
+  homepage "https://github.com/lucasmenendez/sshvault"
+
+  depends_on macos: ">= :monterey"
+
+  app "SSHVault.app"
+
+  caveats <<~EOS
+    This build is not notarized by Apple. If macOS blocks the first launch,
+    open System Settings > Privacy & Security and choose "Open Anyway",
+    or Control-click the app in Finder and choose Open.
+  EOS
+end

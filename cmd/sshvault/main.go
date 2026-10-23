@@ -32,10 +32,19 @@ func main() {
 	// Keep the main goroutine pinned even while vault prompts or network setup
 	// block before the optional Glaze window is created.
 	runtime.LockOSThread()
+	appMode := isAppMode()
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		if appMode {
+			showAppError(err)
+		}
 		os.Exit(1)
 	}
+}
+
+func isAppMode() bool {
+	return os.Getenv("SSHVAULT_APP_MODE") == "1" ||
+		strings.Contains(os.Args[0], ".app/Contents/MacOS/")
 }
 
 func run() error {
@@ -65,6 +74,9 @@ func run() error {
 	if showVersion {
 		fmt.Printf("sshvault %s\n", version)
 		return nil
+	}
+	if isAppMode() {
+		uiMode = true
 	}
 	if lockAfter < 0 {
 		return errors.New("--lock-after cannot be negative")

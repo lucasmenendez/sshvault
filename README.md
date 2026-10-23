@@ -23,6 +23,7 @@ Open that URL in a browser. The app listens on loopback only and shows vault unl
 - **Open another vault**: from the lock screen or Settings you can open an existing `ssh.vault` or create a new one at another path. Under `--ui`, the native file picker is available; in a browser, type the path.
 - **Remember last vault**: optional Settings toggle. It stores only the path of the last successfully unlocked or created vault, never the password; disable it to return to the default vault on startup.
 - **Web unlock**: the server starts locked and the UI asks for the password. If the vault does not exist, the UI offers to create it. `--change-password` remains a terminal-only operation.
+- **macOS app**: a self-contained `SSHVault.app` with its own universal binary and icon, available from the Homebrew tap or built locally with `make app`.
 
 ## Installation
 
@@ -47,6 +48,35 @@ sshvault --ui
 ```
 
 The tap contains the formula published automatically from the project's releases.
+
+### macOS app
+
+The tap also provides a self-contained app with its own binary and icon:
+
+```bash
+brew install --cask lucasmenendez/sshvault/sshvault-app
+```
+
+It installs `SSHVault.app` in `/Applications`. The app does not depend on the
+Homebrew CLI installation.
+
+To build the app locally instead:
+
+```bash
+make app
+open build/SSHVault.app
+```
+
+To copy the local build to `~/Applications`:
+
+```bash
+make install-app
+```
+
+The local build and the cask build are ad-hoc signed and **not notarized by
+Apple**. If macOS blocks the first launch, use **System Settings → Privacy &
+Security → Open Anyway**, or Control-click the app in Finder and choose
+**Open**. This is documented rather than bypassing Gatekeeper automatically.
 
 Only macOS and Linux are supported. The binary uses `flock`, POSIX permissions, and symlinks. The native `--ui` window uses the system WebView: WKWebView on macOS and WebKitGTK on Linux. On Linux, WebKitGTK must be installed (`libwebkit2gtk-4.1-0` on Debian/Ubuntu, for example).
 
@@ -158,6 +188,17 @@ Only deployed hosts are considered. Imported but undeployed hosts do not generat
 - **System / Light / Dark** selector in Settings. It is stored in `localStorage`; **System** follows `prefers-color-scheme`.
 - `<dialog><article>` modals, buttons, and forms based on Sumi. Tables and the action column do not duplicate borders or shadows.
 - The **Copy** and **Command** menus are Sumi dropdowns (`<details class="dropdown">`); the panel is mounted on `body` when opened so it stays above the table.
+
+## Changes 0.7.5
+
+- Added a self-contained `SSHVault.app` with its own universal binary, icon, and app metadata.
+- The app opens directly in the Glaze interface when launched from Finder (`SSHVAULT_APP_MODE=1`).
+- Added the `sshvault-app` Homebrew Cask for installing the app in `/Applications`.
+- Added `make app` and `make install-app` for local app builds.
+- The app icon is generated once from the header shield mark and committed as `AppIcon.icns`; it is not regenerated on install.
+- Updated the web favicon to match the app icon.
+- App builds are ad-hoc signed; Apple notarization is not available without a Developer ID.
+- The release workflow now builds and publishes `SSHVault-<version>.zip` and updates both the formula and the cask.
 
 ## Changes 0.7.4
 

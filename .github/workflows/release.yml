@@ -85,6 +85,21 @@ jobs:
           file dist/sshvault
           lipo -info dist/sshvault
 
+      - name: Build macOS app bundle
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          SSHVAULT_BIN="$PWD/dist/sshvault" \
+          SSHVAULT_APP="$PWD/dist/SSHVault.app" \
+          SSHVAULT_VERSION="$VERSION" \
+          ./packaging/macos/build-app.sh
+
+          ditto -c -k --keepParent dist/SSHVault.app "dist/SSHVault-${VERSION}.zip"
+          shasum -a 256 "dist/SSHVault-${VERSION}.zip" > dist/app-checksums.txt
+          lipo -info dist/SSHVault.app/Contents/MacOS/SSHVault
+          codesign --verify --strict dist/SSHVault.app
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -95,13 +110,17 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" \
               dist/sshvault-darwin-universal.tar.gz \
-              dist/checksums.txt --clobber
+              dist/checksums.txt \
+              "dist/SSHVault-${VERSION}.zip" \
+              dist/app-checksums.txt --clobber
           else
             gh release create "$TAG" \
               dist/sshvault-darwin-universal.tar.gz \
               dist/checksums.txt \
+              "dist/SSHVault-${VERSION}.zip" \
+              dist/app-checksums.txt \
               --title "sshvault ${VERSION}" \
-              --notes "Universal macOS binary. Source: https://github.com/lucasmenendez/sshvault/tree/${TAG}" \
+              --notes "Universal macOS binary and SSHVault app. Source: https://github.com/lucasmenendez/sshvault/tree/${TAG}" \
               --verify-tag
           fi
 
@@ -113,27 +132,34 @@ jobs:
           ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           persist-credentials: true
 
-      - name: Update Homebrew formula
+      - name: Update Homebrew formula and cask
         env:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-          SHA256="$(awk '{print $1}' dist/checksums.txt)"
-          mkdir -p tap/Formula
+          FORMULA_SHA256="$(awk '{print $1}' dist/checksums.txt)"
+          APP_SHA256="$(awk '{print $1}' dist/app-checksums.txt)"
+          mkdir -p tap/Formula tap/Casks
+
           sed \
             -e "s/__VERSION__/${VERSION}/g" \
-            -e "s/__SHA256__/${SHA256}/g" \
+            -e "s/__SHA256__/${FORMULA_SHA256}/g" \
             packaging/homebrew/sshvault.rb.tmpl > tap/Formula/sshvault.rb
+          sed \
+            -e "s/__VERSION__/${VERSION}/g" \
+            -e "s/__SHA256__/${APP_SHA256}/g" \
+            packaging/homebrew/sshvault-app.rb.tmpl > tap/Casks/sshvault-app.rb
           ruby -c tap/Formula/sshvault.rb
+          ruby -c tap/Casks/sshvault-app.rb
 
           git -C tap config user.name "github-actions[bot]"
           git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if [ -z "$(git -C tap status --porcelain -- Formula/sshvault.rb)" ]; then
-            echo "Formula is already up to date."
+          if [ -z "$(git -C tap status --porcelain -- Formula/sshvault.rb Casks/sshvault-app.rb)" ]; then
+            echo "Formula and cask are already up to date."
             exit 0
           fi
 
-          git -C tap add Formula/sshvault.rb
+          git -C tap add Formula/sshvault.rb Casks/sshvault-app.rb
           git -C tap commit -m "sshvault ${VERSION}"
           git -C tap push origin HEAD:main
