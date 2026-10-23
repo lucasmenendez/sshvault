@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>sshvault — a local encrypted vault for SSH</title>
+  <meta name="description" content="A local-first, encrypted vault for SSH keys, certificates, hosts and files. Native macOS app and Homebrew install.">
+  <meta property="og:title" content="sshvault — a local encrypted vault for SSH">
+  <meta property="og:description" content="Keep SSH keys, certificates, hosts and ~/.ssh files in one encrypted, portable vault.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://lucasmenendez.github.io/sshvault/">
+  <meta property="og:image" content="https://lucasmenendez.github.io/sshvault/assets/screenshots/keys-list.png">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 20 3m-3 3 2 2m-5 1 2 2"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.1 9a7 7 0 0 1 11.6-2L20 12M4 12l2.3 5a7 7 0 0 0 11.6-2"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="sshvault home">
+      <img src="assets/logo.svg" width="32" height="32" alt="">
+      <span>sshvault</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#security">Security</a>
+    </nav>
+    <a class="button small" href="https://github.com/lucasmenendez/sshvault">GitHub <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse"></span> Local-first SSH management</p>
+        <h1>Your SSH keys,<br><em>one encrypted vault.</em></h1>
+        <p class="lede">A local manager for SSH keys, certificates, hosts and <code>~/.ssh</code> files. Everything lives in a single portable, encrypted file — never in a cloud account.</p>
+        <div class="actions">
+          <a class="button primary" href="#install">Install sshvault <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="button" href="https://github.com/lucasmenendez/sshvault">View source</a>
+        </div>
+        <ul class="hero-facts" aria-label="Highlights">
+          <li>Argon2id</li>
+          <li>XChaCha20</li>
+          <li>Loopback only</li>
+          <li>AGPL-3.0</li>
+        </ul>
+      </div>
+      <div class="hero-visual">
+        <div class="glow"></div>
+        <img class="screenshot" src="assets/screenshots/keys-list.png" width="1600" height="1048" alt="sshvault Keys view showing an encrypted SSH key">
+        <div class="floating-card">
+          <svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>
+          <div>
+            <strong>Encrypted at rest</strong>
+            <span>Password never stored</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="trust" aria-label="Technical highlights">
+      <div><span class="trust-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg></span><strong>No cloud</strong><span>Only loopback listens</span></div>
+      <div><span class="trust-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></span><strong>Argon2id</strong><span>Memory-hard key derivation</span></div>
+      <div><span class="trust-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg></span><strong>Portable</strong><span>One encrypted vault file</span></div>
+      <div><span class="trust-icon"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg></span><strong>Native macOS</strong><span>Glaze WebView app</span></div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-head">
+        <p class="eyebrow">A complete SSH workspace</p>
+        <h2>Everything in <code>~/.ssh</code>, under control.</h2>
+        <p>Review, edit, generate and deploy without losing track of what lives inside the vault and what is projected to disk.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg></span>
+          <h3>Keys and certificates</h3>
+          <p>Import existing keys, generate ed25519, RSA or ECDSA pairs, inspect fingerprints and deploy or remove local copies.</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-server"/></svg></span>
+          <h3>Hosts and config</h3>
+          <p>Manage a marked block in <code>~/.ssh/config</code>, multiple IdentityFiles, advanced options and duplicate host warnings.</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg></span>
+          <h3>Other files</h3>
+          <p>Keep <code>known_hosts</code>, <code>authorized_keys</code> and other files in the same vault with download, deploy and drift checks.</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg></span>
+          <h3>Import and review</h3>
+          <p>Scan <code>~/.ssh</code> safely, preview everything first and apply imports only when you confirm.</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg></span>
+          <h3>Locked by default</h3>
+          <p>The app starts locked, asks for the password in the UI and discards the derived key when idle.</p>
+        </article>
+        <article class="feature">
+          <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg></span>
+          <h3>Native app</h3>
+          <p>Install the CLI or the self-contained macOS app. Both use the same local server and encrypted vault.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="screenshots" class="section">
+      <div class="section-head">
+        <p class="eyebrow">Inside the app</p>
+        <h2>Designed to stay out of the way.</h2>
+        <p>Native tables, a fixed workspace and focused forms for the things you actually change.</p>
+      </div>
+      <div class="gallery">
+        <figure>
+          <img src="assets/screenshots/keys-list.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Keys list with search, tags and deployment status">
+          <figcaption><strong>Keys</strong><span>Search, tags and local status.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/key-modal-1.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Key editor with alias, filename, tags and generation options">
+          <figcaption><strong>Key details</strong><span>Metadata and key generation.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/key-modal-2.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Key editor showing public key, private key and certificate fields">
+          <figcaption><strong>Key material</strong><span>Public, private and certificate fields.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/hosts-list.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Hosts list with host patterns, identity files and deployment status">
+          <figcaption><strong>Hosts</strong><span>Hosts, identities and status.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/host-modal-1.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Host editor with hostname, user, port and identity file">
+          <figcaption><strong>Host editor</strong><span>Fields for the common settings.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/host-modal-2.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Host editor with advanced SSH options and a config preview">
+          <figcaption><strong>Advanced options</strong><span>Ordered directives and preview.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/file-list.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Files list with local status and sensitive file warnings">
+          <figcaption><strong>Files</strong><span>Local files and sensitive warnings.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/file-modal.png" width="1600" height="1048" loading="lazy" decoding="async" alt="File editor with permissions, tags and content">
+          <figcaption><strong>File editor</strong><span>Text, permissions and deploy.</span></figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshots/vault-unlock.png" width="1600" height="1048" loading="lazy" decoding="async" alt="Vault unlock screen with password field">
+          <figcaption><strong>Lock screen</strong><span>The vault starts locked.</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="install" class="section install">
+      <div class="section-head">
+        <p class="eyebrow">Get started</p>
+        <h2>Install in seconds.</h2>
+        <p>Use Homebrew for the command, the app, or both. Everything stays on your Mac.</p>
+      </div>
+      <div class="install-grid">
+        <article class="install-card">
+          <div class="install-head"><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><h3>Command line</h3></div>
+          <p>Homebrew formula for the local server and native UI.</p>
+          <div class="command">
+            <pre><code id="cli-install">brew tap lucasmenendez/sshvault
+brew trust lucasmenendez/sshvault
+brew install sshvault</code></pre>
+            <button class="copy" type="button" data-copy="#cli-install" aria-label="Copy command-line installation commands">Copy</button>
+          </div>
+          <a class="text-link" href="https://github.com/lucasmenendez/sshvault#installation">Read the installation notes <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </article>
+        <article class="install-card featured">
+          <div class="install-head"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><h3>macOS app</h3></div>
+          <p>A self-contained <code>SSHVault.app</code> with its own binary and icon.</p>
+          <div class="command">
+            <pre><code id="app-install">brew install --cask lucasmenendez/sshvault/sshvault-app</code></pre>
+            <button class="copy" type="button" data-copy="#app-install" aria-label="Copy app installation command">Copy</button>
+          </div>
+          <a class="text-link" href="https://github.com/lucasmenendez/sshvault#macos-app">App installation notes <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <p class="note">Ad-hoc signed, not notarized. If macOS blocks the first launch, use Privacy &amp; Security → Open Anyway.</p>
+        </article>
+        <article class="install-card">
+          <div class="install-head"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg><h3>From source</h3></div>
+          <p>Build the CLI or a local app with Go 1.27+.</p>
+          <div class="command">
+            <pre><code id="source-install">git clone https://github.com/lucasmenendez/sshvault.git
+cd sshvault
+make build
+make app</code></pre>
+            <button class="copy" type="button" data-copy="#source-install" aria-label="Copy source build commands">Copy</button>
+          </div>
+          <a class="text-link" href="https://github.com/lucasmenendez/sshvault#development">Development notes <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+        </article>
+      </div>
+    </section>
+
+    <section id="security" class="section security">
+      <div class="security-copy">
+        <p class="eyebrow">Local by design</p>
+        <h2>Your keys never leave the machine.</h2>
+        <p>The web UI binds to loopback only. Host, Origin and CSRF checks protect the local session. The vault is encrypted with Argon2id and XChaCha20-Poly1305, and the password is never stored on disk.</p>
+        <ul class="check-list">
+          <li><span>01</span>Single encrypted, portable vault</li>
+          <li><span>02</span>OS-native file permissions and atomic writes</li>
+          <li><span>03</span>Idle lock discards the derived key</li>
+          <li><span>04</span>No telemetry, no external assets, no CDN</li>
+          <li><span>05</span>AGPL-3.0-only source available on GitHub</li>
+        </ul>
+      </div>
+      <div class="security-card">
+        <div class="security-mark"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg></div>
+        <p>Designed for people who keep their SSH material close.</p>
+        <a class="button primary" href="https://github.com/lucasmenendez/sshvault">Inspect the source <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/logo.svg" width="28" height="28" alt="">
+        <span>sshvault</span>
+        <small>Local encrypted SSH management.</small>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/lucasmenendez/sshvault">GitHub</a>
+        <a href="https://github.com/lucasmenendez/sshvault/releases">Releases</a>
+        <a href="https://github.com/lucasmenendez/sshvault/blob/main/LICENSE">AGPL-3.0</a>
+        <a href="https://github.com/lucasmenendez/sshvault#readme">README</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -298,9 +298,12 @@ function renderShell() {
   $('#count-keys').textContent = state.data.keys.length;
   $('#count-hosts').textContent = state.data.hosts.length;
   $('#count-files').textContent = state.data.files.length;
-  const base = state.data.vault.path.split('/').pop() || 'ssh.vault';
+  const vaultPath = state.data.vault.path;
+  const base = vaultPath.split('/').pop() || 'ssh.vault';
   $('#brand-sub').textContent = base;
-  $('#side-ssh').textContent = state.data.sshDir;
+  const sideVault = $('#side-vault');
+  sideVault.textContent = vaultPath;
+  sideVault.title = vaultPath;
   $('#side-version').textContent = state.data.version === 'dev' ? 'dev' : `v${state.data.version}`;
   $$('.nav-item[data-view]').forEach((item) => {
     item.classList.toggle('active', item.dataset.view === state.view);

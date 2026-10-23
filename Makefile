@@ -1,8 +1,8 @@
 BINARY  := sshvault
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.7.5)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.7.6)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: build app install-app test vet fmt run clean cross
+.PHONY: build app install-app site test vet fmt run clean cross
 
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/sshvault
@@ -17,6 +17,9 @@ install-app: app
 	mkdir -p "$(HOME)/Applications"
 	rm -rf "$(HOME)/Applications/SSHVault.app"
 	ditto "$(CURDIR)/build/SSHVault.app" "$(HOME)/Applications/SSHVault.app"
+
+site:
+	./packaging/pages/build.sh
 
 test:
 	go test -race ./...

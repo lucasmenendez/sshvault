@@ -9,6 +9,12 @@ Ok! Serving http://localhost:7000
 
 Open that URL in a browser. The app listens on loopback only and shows vault unlock or creation in its own interface.
 
+[Website](https://lucasmenendez.github.io/sshvault/) · [Releases](https://github.com/lucasmenendez/sshvault/releases) · [License](LICENSE)
+
+<p align="center">
+  <img src="screenshots/optimized/keys-list.png" width="900" alt="sshvault Keys view with an encrypted SSH key">
+</p>
+
 ## What it does
 
 - **Keys**: public keys, private keys, and certificates with aliases, tags, fingerprints, and local deployment status. Copy, edit, generate ed25519/RSA/ECDSA key pairs, deploy them to `~/.ssh`, and remove local copies.
@@ -24,6 +30,17 @@ Open that URL in a browser. The app listens on loopback only and shows vault unl
 - **Remember last vault**: optional Settings toggle. It stores only the path of the last successfully unlocked or created vault, never the password; disable it to return to the default vault on startup.
 - **Web unlock**: the server starts locked and the UI asks for the password. If the vault does not exist, the UI offers to create it. `--change-password` remains a terminal-only operation.
 - **macOS app**: a self-contained `SSHVault.app` with its own universal binary and icon, available from the Homebrew tap or built locally with `make app`.
+
+## Screenshots
+
+| Keys | Key details |
+| --- | --- |
+| ![Keys list](screenshots/optimized/keys-list.png) | ![Key details](screenshots/optimized/key-modal-1.png) |
+| ![Key fields](screenshots/optimized/key-modal-2.png) | ![Hosts list](screenshots/optimized/hosts-list.png) |
+| ![Host editor](screenshots/optimized/host-modal-1.png) | ![Host options](screenshots/optimized/host-modal-2.png) |
+| ![Files list](screenshots/optimized/file-list.png) | ![File editor](screenshots/optimized/file-modal.png) |
+
+![Vault unlock](screenshots/optimized/vault-unlock.png)
 
 ## Installation
 
@@ -188,6 +205,14 @@ Only deployed hosts are considered. Imported but undeployed hosts do not generat
 - **System / Light / Dark** selector in Settings. It is stored in `localStorage`; **System** follows `prefers-color-scheme`.
 - `<dialog><article>` modals, buttons, and forms based on Sumi. Tables and the action column do not duplicate borders or shadows.
 - The **Copy** and **Command** menus are Sumi dropdowns (`<details class="dropdown">`); the panel is mounted on `body` when opened so it stays above the table.
+
+## Changes 0.7.6
+
+- The sidebar now shows the path of the active vault above the version instead of always showing the SSH directory.
+- Added a GitHub Pages landing page with features, screenshots, installation instructions, and the security and licensing model.
+- Added optimized screenshot copies for the README and website while keeping the original captures.
+- Updated the favicon and app icon from the same header shield mark.
+- The Pages workflow publishes `site/` and the optimized screenshots automatically on pushes to `main`.
 
 ## Changes 0.7.5
 
